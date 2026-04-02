@@ -18,8 +18,12 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
 
     public UserDocument createUser(String email, String password, UserProvider provider) {
-        if (userRepository.existsByEmail(email)) {
-            throw new IllegalArgumentException("A user with this email already exists.");
+        if (email == null || email.isBlank()) {
+            throw new IllegalArgumentException("Email is required.");
+        }
+
+        if (provider == null) {
+            throw new IllegalArgumentException("Provider is required.");
         }
 
         String passwordHash = null;
@@ -33,6 +37,10 @@ public class UserService {
             passwordHash = null;
         } else {
             throw new IllegalArgumentException("Unsupported provider.");
+        }
+
+        if (userRepository.existsByEmail(email)) {
+            throw new IllegalStateException("A user with this email already exists.");
         }
 
         UserDocument userDocument = UserDocument.builder()

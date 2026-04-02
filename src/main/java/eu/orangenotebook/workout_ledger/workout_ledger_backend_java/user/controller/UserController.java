@@ -35,6 +35,8 @@ public class UserController {
             UserDocument createdUser = userService.createUser(request.email(), request.password(), request.provider());
             return ResponseEntity.status(HttpStatus.CREATED).body(UserResponse.from(createdUser));
         } catch (IllegalArgumentException exception) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        } catch (IllegalStateException exception) {
             return ResponseEntity.status(HttpStatus.CONFLICT).build();
         }
     }
