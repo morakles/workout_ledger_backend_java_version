@@ -1,5 +1,6 @@
 package eu.orangenotebook.workout_ledger.workout_ledger_backend_java.config;
 
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.security.JwtAuthenticationFilter;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.security.OAuth2LoginFailureHandler;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.security.OAuth2LoginSuccessHandler;
 import org.springframework.context.annotation.Bean;
@@ -11,8 +12,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.web.servlet.config.annotation.CorsRegistry;
-import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -31,7 +31,8 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
                                                    OAuth2LoginSuccessHandler successHandler,
-                                                   OAuth2LoginFailureHandler failureHandler) throws Exception {
+                                                   OAuth2LoginFailureHandler failureHandler,
+                                                   JwtAuthenticationFilter jwtAuthenticationFilter) throws Exception {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.disable())
@@ -58,7 +59,8 @@ public class SecurityConfig {
                 .oauth2Login(oauth -> oauth
                         .successHandler(successHandler)
                         .failureHandler(failureHandler)
-                );
+                )
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
@@ -83,27 +85,5 @@ public class SecurityConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return source;
-    }
-
-    @Bean
-    public WebMvcConfigurer corsConfigurer() {
-        return new WebMvcConfigurer() {
-            @Override
-            public void addCorsMappings(CorsRegistry registry) {
-                registry.addMapping("/**")
-                        .allowedOrigins(
-                                "http://localhost:8080",
-                                "http://localhost:8081",
-                                "http://127.0.0.1:8080",
-                                "http://127.0.0.1:8081",
-                                "http://localhost:3000",
-                                "http://127.0.0.1:3000")
-                        .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
-                        .allowedHeaders("*")
-                        .exposedHeaders("Authorization", "Cache-Control", "Content-Type")
-                        .allowCredentials(false)
-                        .maxAge(3600);
-            }
-        };
     }
 }

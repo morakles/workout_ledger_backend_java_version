@@ -11,6 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.util.Date;
 import java.util.List;
+import java.util.Collections;
 
 @Service
 public class JwtService {
@@ -45,6 +46,30 @@ public class JwtService {
             return claims.getExpiration().after(new Date());
         } catch (Exception e) {
             return false;
+        }
+    }
+
+    public record JwtValidationResult(boolean valid, String subject, List<String> roles) {
+    }
+
+    public JwtValidationResult validateAndExtract(String token) {
+        try {
+            Claims claims = Jwts.parserBuilder()
+                    .setSigningKey(getSigningKey())
+                    .build()
+                    .parseClaimsJws(token)
+                    .getBody();
+            if (claims.getExpiration().before(new Date())) {
+                return new JwtValidationResult(false, null, Collections.emptyList());
+            }
+            String subject = claims.getSubject();
+            List<String> roles = claims.get("roles", List.class);
+            if (roles == null) {
+                roles = Collections.emptyList();
+            }
+            return new JwtValidationResult(true, subject, roles);
+        } catch (Exception e) {
+            return new JwtValidationResult(false, null, Collections.emptyList());
         }
     }
 
