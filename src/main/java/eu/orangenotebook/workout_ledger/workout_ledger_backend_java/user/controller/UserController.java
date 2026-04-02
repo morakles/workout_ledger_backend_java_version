@@ -41,6 +41,18 @@ public class UserController {
         }
     }
 
+    @PostMapping("/login")
+    public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
+        try {
+            String token = userService.login(request.email(), request.password());
+            return ResponseEntity.ok(new LoginResponse(token, request.email()));
+        } catch (IllegalArgumentException exception) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        } catch (IllegalStateException exception) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+    }
+
     @GetMapping("/by-email")
     public ResponseEntity<UserResponse> getUserByEmail(@RequestParam @NotBlank @Email String email) {
         return userService.getUserByEmail(email)
