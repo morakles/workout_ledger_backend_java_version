@@ -1,8 +1,10 @@
 package eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.service;
 
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.controller.LoginResponse;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.model.UserDocument;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.model.UserProvider;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.repository.UserRepository;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.security.GoogleTokenVerifier;
 import lombok.RequiredArgsConstructor;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.security.JwtService;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -18,6 +20,7 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final GoogleTokenVerifier googleTokenVerifier;
 
     public UserDocument createUser(String email, String password, UserProvider provider) {
         if (email == null || email.isBlank()) {
@@ -77,6 +80,40 @@ public class UserService {
         if (!passwordEncoder.matches(password, user.getPasswordHash())) {
             throw new IllegalStateException("Invalid credentials.");
         }
+
+        return jwtService.generateToken(user.getEmail(), user.getRoles());
+    }
+
+    public LoginResponse googleLogin(String idToken) {
+        String email = googleTokenVerifier.verifyAndExtractEmail(idToken);
+        if (email == null || email.isBlank()) {
+            throw new IllegalStateException("Invalid Google ID token.");
+        }
+        String token = processGoogleLogin(email);
+        return new LoginResponse(token, email);
+    }
+
+    public String processGoogleLogin(String email) {
+        if (email == null || email.isBlank()) {
+            throw new IllegalArgumentException("Email is required.");
+        }
+
+        UserDocument user = userRepository.findByEmail(email)
+                .map(existing -> {
+                    if (existing.getProvider() != UserProvider.GOOGLE) {
+                        throw new IllegalStateException("Email is registered with a different provider.");
+                    }
+                    return existing;
+                })
+                .orElseGet(() -> {
+                    UserDocument newUser = UserDocument.builder()
+                            .email(email)
+                            .passwordHash(null)
+                            .provider(UserProvider.GOOGLE)
+                            .roles(List.of("ROLE_USER"))
+                            .build();
+                    return userRepository.save(newUser);
+                });
 
         return jwtService.generateToken(user.getEmail(), user.getRoles());
     }

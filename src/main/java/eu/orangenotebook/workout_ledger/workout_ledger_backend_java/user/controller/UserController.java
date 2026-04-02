@@ -53,6 +53,18 @@ public class UserController {
         }
     }
 
+    @PostMapping("/google-login")
+    public ResponseEntity<LoginResponse> googleLogin(@Valid @RequestBody GoogleLoginRequest request) {
+        try {
+            LoginResponse response = userService.googleLogin(request.idToken());
+            return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException exception) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        } catch (IllegalStateException exception) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+    }
+
     @GetMapping("/by-email")
     public ResponseEntity<UserResponse> getUserByEmail(@RequestParam @NotBlank @Email String email) {
         return userService.getUserByEmail(email)

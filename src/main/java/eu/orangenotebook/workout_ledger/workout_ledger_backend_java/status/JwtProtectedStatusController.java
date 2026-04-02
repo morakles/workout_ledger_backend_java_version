@@ -8,12 +8,12 @@ import org.springframework.web.bind.annotation.RestController;
 import java.time.Instant;
 
 @RestController
-@RequestMapping("/api/status")
-public class StatusController {
+@RequestMapping("/api/protectedstatus")
+public class JwtProtectedStatusController {
 
     @GetMapping(produces = "application/json")
     public ResponseEntity<StatusResponse> status(){
-        return ResponseEntity.ok(new StatusResponse("OK", Instant.now()));
+        return ResponseEntity.ok(new StatusResponse("Protected status OK", Instant.now()));
     }
 
     record StatusResponse(String status, Instant timestamp) {
