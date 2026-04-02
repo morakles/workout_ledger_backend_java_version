@@ -48,7 +48,7 @@ public class UserController {
 
     public record RegisterUserRequest(
             @NotBlank @Email String email,
-            @NotBlank String password,
+            String password,
             @NotNull UserProvider provider
     ) {
     }

@@ -30,7 +30,6 @@ public class UserDocument {
     @Indexed(unique = true)
     private String email;
 
-    @NotNull
     private String passwordHash;
 
     @NotNull
