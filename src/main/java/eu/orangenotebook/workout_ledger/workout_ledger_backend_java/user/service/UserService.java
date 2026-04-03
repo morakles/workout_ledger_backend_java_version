@@ -1,7 +1,9 @@
 package eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.service;
 
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exception.AuthenticationException;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.controller.GoogleLoginRequest;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.controller.LoginResponse;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.controller.RegisterLocalUserRequest;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.model.UserDocument;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.model.UserProvider;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.repository.UserRepository;
@@ -27,40 +29,35 @@ public class UserService {
     private final JwtService jwtService;
     private final GoogleTokenVerifier googleTokenVerifier;
 
-    public UserDocument createUser(String email, String password, UserProvider provider) {
-        String normalizedEmail = normalizeEmail(email);
+    public UserDocument registerLocalUser(RegisterLocalUserRequest request) {
+        String normalizedEmail = normalizeEmail(request.email());
 
-        if (provider == null) {
-            throw new IllegalArgumentException("Provider is required.");
+        if (request.password() == null || request.password().isBlank()) {
+            throw new IllegalArgumentException("Password is required for local users.");
         }
 
-        String passwordHash = null;
-
-        if (provider == UserProvider.LOCAL) {
-            if (password == null || password.isBlank()) {
-                throw new IllegalArgumentException("Password is required for local users.");
+        userRepository.findByEmail(normalizedEmail).ifPresent(existing -> {
+            if (existing.getProvider() == UserProvider.LOCAL) {
+                throw new IllegalArgumentException("A local account with this email already exists.");
+            } else {
+                throw new IllegalArgumentException("Email is registered with Google. Use Google login instead.");
             }
-            passwordHash = passwordEncoder.encode(password);
-        } else if (provider == UserProvider.GOOGLE) {
-            passwordHash = null;
-        } else {
-            throw new IllegalArgumentException("Unsupported provider.");
-        }
+        });
 
         UserDocument userDocument = UserDocument.builder()
                 .email(normalizedEmail)
-                .passwordHash(passwordHash)
-                .provider(provider)
+                .passwordHash(passwordEncoder.encode(request.password()))
+                .provider(UserProvider.LOCAL)
                 .roles(List.of("ROLE_USER"))
                 .build();
 
         try {
             UserDocument saved = userRepository.save(userDocument);
-            log.info("Registered new {} user: {}", provider, normalizedEmail);
+            log.info("Registered new LOCAL user: {}", normalizedEmail);
             return saved;
         } catch (DuplicateKeyException e) {
             log.warn("Registration failed: email already exists {}", normalizedEmail);
-            throw new IllegalArgumentException("A user with this email already exists.");
+            throw e;
         }
     }
 
@@ -94,8 +91,8 @@ public class UserService {
         return new LoginResponse(token, normalizedEmail);
     }
 
-    public LoginResponse googleLogin(String idToken) {
-        String email = googleTokenVerifier.verifyAndExtractEmail(idToken);
+    public LoginResponse googleLogin(GoogleLoginRequest request) {
+        String email = googleTokenVerifier.verifyAndExtractEmail(request.idToken());
         String normalizedEmail = normalizeEmail(email);
         String token = processGoogleLogin(normalizedEmail);
         log.info("Google login succeeded for {}", normalizedEmail);
@@ -108,7 +105,7 @@ public class UserService {
         UserDocument user = userRepository.findByEmail(normalizedEmail)
                 .map(existing -> {
                     if (existing.getProvider() != UserProvider.GOOGLE) {
-                        throw new AuthenticationException("Email is registered with a different provider.");
+                        throw new AuthenticationException("Email is registered as a local account. Use password login.");
                     }
                     return existing;
                 })

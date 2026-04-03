@@ -4,9 +4,6 @@ import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.model.U
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.model.UserProvider;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.service.UserService;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -20,7 +17,7 @@ import java.time.Instant;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/users")
+@RequestMapping("/api/auth")
 @RequiredArgsConstructor
 @Validated
 public class UserController {
@@ -28,8 +25,8 @@ public class UserController {
     private final UserService userService;
 
     @PostMapping("/register")
-    public ResponseEntity<UserResponse> register(@Valid @RequestBody RegisterUserRequest request) {
-        UserDocument createdUser = userService.createUser(request.email(), request.password(), request.provider());
+    public ResponseEntity<UserResponse> register(@Valid @RequestBody RegisterLocalUserRequest request) {
+        UserDocument createdUser = userService.registerLocalUser(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(UserResponse.from(createdUser));
     }
 
@@ -41,15 +38,8 @@ public class UserController {
 
     @PostMapping("/google-login")
     public ResponseEntity<LoginResponse> googleLogin(@Valid @RequestBody GoogleLoginRequest request) {
-        LoginResponse response = userService.googleLogin(request.idToken());
+        LoginResponse response = userService.googleLogin(request);
         return ResponseEntity.ok(response);
-    }
-
-    public record RegisterUserRequest(
-            @NotBlank @Email String email,
-            String password,
-            @NotNull UserProvider provider
-    ) {
     }
 
     public record UserResponse(
