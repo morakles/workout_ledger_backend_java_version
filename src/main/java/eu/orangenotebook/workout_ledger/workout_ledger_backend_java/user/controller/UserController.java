@@ -11,11 +11,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Instant;
@@ -31,45 +29,20 @@ public class UserController {
 
     @PostMapping("/register")
     public ResponseEntity<UserResponse> register(@Valid @RequestBody RegisterUserRequest request) {
-        try {
-            UserDocument createdUser = userService.createUser(request.email(), request.password(), request.provider());
-            return ResponseEntity.status(HttpStatus.CREATED).body(UserResponse.from(createdUser));
-        } catch (IllegalArgumentException exception) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
-        } catch (IllegalStateException exception) {
-            return ResponseEntity.status(HttpStatus.CONFLICT).build();
-        }
+        UserDocument createdUser = userService.createUser(request.email(), request.password(), request.provider());
+        return ResponseEntity.status(HttpStatus.CREATED).body(UserResponse.from(createdUser));
     }
 
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
-        try {
-            String token = userService.login(request.email(), request.password());
-            return ResponseEntity.ok(new LoginResponse(token, request.email()));
-        } catch (IllegalArgumentException exception) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
-        } catch (IllegalStateException exception) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
+        LoginResponse response = userService.login(request.email(), request.password());
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/google-login")
     public ResponseEntity<LoginResponse> googleLogin(@Valid @RequestBody GoogleLoginRequest request) {
-        try {
-            LoginResponse response = userService.googleLogin(request.idToken());
-            return ResponseEntity.ok(response);
-        } catch (IllegalArgumentException exception) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
-        } catch (IllegalStateException exception) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
-    }
-
-    @GetMapping("/by-email")
-    public ResponseEntity<UserResponse> getUserByEmail(@RequestParam @NotBlank @Email String email) {
-        return userService.getUserByEmail(email)
-                .map(user -> ResponseEntity.ok(UserResponse.from(user)))
-                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).build());
+        LoginResponse response = userService.googleLogin(request.idToken());
+        return ResponseEntity.ok(response);
     }
 
     public record RegisterUserRequest(

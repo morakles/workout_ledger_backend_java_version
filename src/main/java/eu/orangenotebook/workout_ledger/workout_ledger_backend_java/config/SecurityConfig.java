@@ -1,8 +1,6 @@
 package eu.orangenotebook.workout_ledger.workout_ledger_backend_java.config;
 
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.security.JwtAuthenticationFilter;
-import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.security.OAuth2LoginFailureHandler;
-import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.security.OAuth2LoginSuccessHandler;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -30,8 +28,6 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
-                                                   OAuth2LoginSuccessHandler successHandler,
-                                                   OAuth2LoginFailureHandler failureHandler,
                                                    JwtAuthenticationFilter jwtAuthenticationFilter) throws Exception {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
@@ -44,8 +40,6 @@ public class SecurityConfig {
                                 "/api/users/register",
                                 "/api/users/login",
                                 "/api/users/google-login",
-                                "/oauth2/**",
-                                "/login/**",
                                 "/swagger-resources/**",
                                 "/webjars/**",
                                 "/v3/api-docs/**",
@@ -56,10 +50,6 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .oauth2Login(oauth -> oauth
-                        .successHandler(successHandler)
-                        .failureHandler(failureHandler)
-                )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
@@ -69,15 +59,10 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOrigins(List.of(
-                "http://localhost:8080",
-                "http://localhost:8081",
-                "http://127.0.0.1:8080",
-                "http://127.0.0.1:8081",
                 "http://localhost:3000",
-                "http://127.0.0.1:3000"
+                "http://localhost:8080"
         ));
-        config.setAllowedOriginPatterns(List.of("*"));
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setExposedHeaders(List.of("Authorization", "Cache-Control", "Content-Type"));
         config.setAllowCredentials(false);

@@ -16,7 +16,7 @@ public class StatusController {
         return ResponseEntity.ok(new StatusResponse("OK", Instant.now()));
     }
 
-    record StatusResponse(String status, Instant timestamp) {
+    public static record StatusResponse(String status, Instant timestamp) {
 
     }
 }

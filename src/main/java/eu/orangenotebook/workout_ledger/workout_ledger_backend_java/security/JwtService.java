@@ -3,10 +3,11 @@ package eu.orangenotebook.workout_ledger.workout_ledger_backend_java.security;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
+import io.jsonwebtoken.security.Keys;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.util.Date;
@@ -14,6 +15,7 @@ import java.util.List;
 import java.util.Collections;
 
 @Service
+@Slf4j
 public class JwtService {
 
     @Value("${jwt.secret}")
@@ -45,6 +47,7 @@ public class JwtService {
 
             return claims.getExpiration().after(new Date());
         } catch (Exception e) {
+            log.warn("JWT validation failed", e);
             return false;
         }
     }
@@ -60,6 +63,7 @@ public class JwtService {
                     .parseClaimsJws(token)
                     .getBody();
             if (claims.getExpiration().before(new Date())) {
+                log.warn("JWT expired for subject {}", claims.getSubject());
                 return new JwtValidationResult(false, null, Collections.emptyList());
             }
             String subject = claims.getSubject();
@@ -69,12 +73,16 @@ public class JwtService {
             }
             return new JwtValidationResult(true, subject, roles);
         } catch (Exception e) {
+            log.warn("JWT validation failed", e);
             return new JwtValidationResult(false, null, Collections.emptyList());
         }
     }
 
     private Key getSigningKey() {
         byte[] keyBytes = secret.getBytes(StandardCharsets.UTF_8);
-        return new SecretKeySpec(keyBytes, SignatureAlgorithm.HS256.getJcaName());
+        if (keyBytes.length < 32) { // 256 bits for HS256
+            throw new IllegalStateException("jwt.secret must be at least 256 bits (32 ASCII characters) long");
+        }
+        return Keys.hmacShaKeyFor(keyBytes);
     }
 }

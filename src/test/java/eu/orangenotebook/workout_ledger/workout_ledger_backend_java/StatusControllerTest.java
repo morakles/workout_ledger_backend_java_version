@@ -4,23 +4,27 @@ import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.status.Statu
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.util.Map;
-
+import org.springframework.http.ResponseEntity;
+import java.time.Instant;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class StatusControllerTest {
 
     @Test
-    @DisplayName("status() returns UP and timestamp")
+    @DisplayName("status() returns OK and timestamp")
     void statusMethodReturnsExpectedPayload() {
         StatusController controller = new StatusController();
 
-        Map<String, Object> result = controller.status();
+        ResponseEntity<?> response = controller.status();
+        Object body = response.getBody();
 
-        assertNotNull(result, "Result map should not be null");
-        assertEquals("UP", result.get("status"));
-        assertNotNull(result.get("timestamp"), "Timestamp should be present");
+        assertNotNull(body, "Response body should not be null");
+        assertEquals(200, response.getStatusCode().value());
+        StatusController.StatusResponse payload = (StatusController.StatusResponse) body;
+        assertEquals("OK", payload.status());
+        assertNotNull(payload.timestamp(), "Timestamp should be present");
+        assertEquals(true, payload.timestamp().isBefore(Instant.now().plusSeconds(5)));
     }
 }
 
