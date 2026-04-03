@@ -15,11 +15,19 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import jakarta.servlet.http.HttpServletResponse;
 import java.util.List;
 
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
+
+    private static final String[] PUBLIC_ENDPOINTS = {
+            "/api/auth/**",
+            "/swagger-ui/**",
+            "/v3/api-docs/**",
+            "/api/status"
+    };
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -32,21 +40,14 @@ public class SecurityConfig {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.disable())
+                .exceptionHandling(ex -> ex.authenticationEntryPoint((request, response, authException) -> {
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    response.setContentType("application/json");
+                    response.getWriter().write("{\"message\":\"Unauthorized\"}");
+                }))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers(
-                                "/api/status",
-                                "/api/status/**",
-                                "/api/users/register",
-                                "/api/users/login",
-                                "/api/users/google-login",
-                                "/swagger-resources/**",
-                                "/webjars/**",
-                                "/v3/api-docs/**",
-                                "/swagger-ui/**",
-                                "/swagger-ui.html",
-                                "/swagger-ui/index.html"
-                        ).permitAll()
+                        .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

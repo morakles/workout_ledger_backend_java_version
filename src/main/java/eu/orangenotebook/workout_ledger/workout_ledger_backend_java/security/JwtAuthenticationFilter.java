@@ -13,9 +13,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 @Component
@@ -23,31 +21,6 @@ import java.util.stream.Collectors;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
-
-    private static final Set<String> PUBLIC_PATHS = Set.of(
-            "/api/users/register",
-            "/api/users/login",
-            "/api/users/google-login",
-            "/api/status",
-            "/api/status/",
-            "/swagger-ui.html",
-            "/swagger-ui/index.html"
-    );
-
-    @Override
-    protected boolean shouldNotFilter(HttpServletRequest request) {
-        String path = request.getRequestURI();
-        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
-            return true;
-        }
-        if (path.startsWith("/swagger-ui/")
-                || path.startsWith("/v3/api-docs")
-                || path.startsWith("/swagger-resources")
-                || path.startsWith("/webjars/")) {
-            return true;
-        }
-        return PUBLIC_PATHS.contains(path);
-    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
