@@ -33,9 +33,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest(properties = "spring.autoconfigure.exclude=" +
-        "org.springframework.boot.mongodb.autoconfigure.MongoAutoConfiguration," +
-        "org.springframework.boot.mongodb.autoconfigure.MongoDataAutoConfiguration," +
-        "org.springframework.boot.mongodb.autoconfigure.EmbeddedMongoAutoConfiguration")
+        "org.springframework.boot.mongodb.autoconfigure.MongoAutoConfiguration")
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class AuthControllerIntegrationTest {
