@@ -36,7 +36,7 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(DuplicateKeyException.class)
-    public ResponseEntity<ApiErrorResponse> handleDuplicate(DuplicateKeyException ex, HttpServletRequest request) {
+    public ResponseEntity<ApiErrorResponse> handleDuplicate(HttpServletRequest request) {
         return buildResponse(HttpStatus.CONFLICT, "A user with this email already exists.", request);
     }
 
