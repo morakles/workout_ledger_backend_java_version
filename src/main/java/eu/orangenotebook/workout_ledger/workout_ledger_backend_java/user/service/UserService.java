@@ -38,7 +38,7 @@ public class UserService {
 
         userRepository.findByEmail(normalizedEmail).ifPresent(existing -> {
             if (existing.getProvider() == UserProvider.LOCAL) {
-                throw new IllegalArgumentException("A local account with this email already exists.");
+                throw new IllegalArgumentException("Invalid credentials");
             } else {
                 throw new IllegalArgumentException("Email is registered with Google. Use Google login instead.");
             }
@@ -73,7 +73,7 @@ public class UserService {
 
         UserDocument user = userRepository.findByEmail(normalizedEmail)
                 .orElseThrow(() -> {
-                    log.warn("Login failed for {}: user not found", normalizedEmail);
+                    log.warn("Authentication failed");
                     return new AuthenticationException("Invalid credentials.");
                 });
 
