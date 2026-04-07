@@ -61,10 +61,6 @@ public class UserService {
         }
     }
 
-    public Optional<UserDocument> getUserByEmail(String email) {
-        return userRepository.findByEmail(normalizeEmail(email));
-    }
-
     public LoginResponse login(String email, String password) {
         String normalizedEmail = normalizeEmail(email);
         if (password == null || password.isBlank()) {
