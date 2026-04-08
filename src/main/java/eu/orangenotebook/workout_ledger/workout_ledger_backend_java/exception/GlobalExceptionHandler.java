@@ -26,6 +26,24 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.UNAUTHORIZED, ex.getMessage(), request);
     }
 
+    @ExceptionHandler(ExerciseAlreadyExistsException.class)
+    public ResponseEntity<ApiErrorResponse> handleExerciseAlreadyExists(ExerciseAlreadyExistsException ex,
+                                                                        HttpServletRequest request) {
+        return buildResponse(HttpStatus.CONFLICT, ex.getMessage(), request);
+    }
+
+    @ExceptionHandler(ExerciseNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleExerciseNotFound(ExerciseNotFoundException ex,
+                                                                   HttpServletRequest request) {
+        return buildResponse(HttpStatus.NOT_FOUND, ex.getMessage(), request);
+    }
+
+    @ExceptionHandler(ExerciseInUseException.class)
+    public ResponseEntity<ApiErrorResponse> handleExerciseInUse(ExerciseInUseException ex,
+                                                                HttpServletRequest request) {
+        return buildResponse(HttpStatus.CONFLICT, ex.getMessage(), request);
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiErrorResponse> handleValidation(MethodArgumentNotValidException ex, HttpServletRequest request) {
         String message = ex.getBindingResult().getFieldErrors().stream()

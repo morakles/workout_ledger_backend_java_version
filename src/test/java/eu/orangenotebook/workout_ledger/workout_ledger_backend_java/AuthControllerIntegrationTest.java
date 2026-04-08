@@ -1,6 +1,7 @@
 package eu.orangenotebook.workout_ledger.workout_ledger_backend_java;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exercise.repository.ExerciseRepository;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.controller.GoogleLoginRequest;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.controller.LoginRequest;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.controller.RegisterLocalUserRequest;
@@ -43,6 +44,9 @@ class AuthControllerIntegrationTest {
 
     @MockitoBean
     UserRepository userRepository;
+
+    @MockitoBean
+    ExerciseRepository exerciseRepository;
 
     @Autowired
     ObjectMapper objectMapper;

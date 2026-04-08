@@ -1,0 +1,396 @@
+package eu.orangenotebook.workout_ledger.workout_ledger_backend_java;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exercise.controller.CreateExerciseRequest;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exercise.model.ExerciseDocument;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exercise.repository.ExerciseRepository;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exercise.service.ExerciseReferenceChecker;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.model.UserDocument;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.model.UserProvider;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.repository.UserRepository;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
+
+import java.time.Instant;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@SpringBootTest(properties = "spring.autoconfigure.exclude=" +
+        "org.springframework.boot.mongodb.autoconfigure.MongoAutoConfiguration")
+@AutoConfigureMockMvc
+@ActiveProfiles("test")
+class ExerciseControllerIntegrationTest {
+
+    private static final String USER_EMAIL = "user@email.com";
+    private static final String USER_ID = "user-1";
+    private static final String OTHER_USER_EMAIL = "other@email.com";
+    private static final String OTHER_USER_ID = "user-2";
+
+    @Autowired
+    MockMvc mockMvc;
+
+    @Autowired
+    ObjectMapper objectMapper;
+
+    @Autowired
+    eu.orangenotebook.workout_ledger.workout_ledger_backend_java.security.JwtService jwtService;
+
+    @MockitoBean
+    UserRepository userRepository;
+
+    @MockitoBean
+    ExerciseRepository exerciseRepository;
+
+    @MockitoBean
+    ExerciseReferenceChecker exerciseReferenceChecker;
+
+    Map<String, UserDocument> usersByEmail;
+    Map<String, ExerciseDocument> exercisesById;
+
+    @BeforeEach
+    void setUp() {
+        usersByEmail = new ConcurrentHashMap<>();
+        exercisesById = new ConcurrentHashMap<>();
+
+        usersByEmail.put(USER_EMAIL, createUser(USER_ID, USER_EMAIL));
+        usersByEmail.put(OTHER_USER_EMAIL, createUser(OTHER_USER_ID, OTHER_USER_EMAIL));
+
+        Mockito.lenient().when(userRepository.findByEmail(anyString()))
+                .thenAnswer(invocation -> Optional.ofNullable(usersByEmail.get(invocation.getArgument(0))));
+
+        Mockito.lenient().when(exerciseRepository.existsByUserIdAndNameNormalized(anyString(), anyString()))
+                .thenAnswer(invocation -> exercisesById.values().stream()
+                        .anyMatch(exercise -> exercise.getUserId().equals(invocation.getArgument(0))
+                                && exercise.getNameNormalized().equals(invocation.getArgument(1))));
+
+        Mockito.lenient().when(exerciseRepository.save(any(ExerciseDocument.class)))
+                .thenAnswer(invocation -> {
+                    ExerciseDocument exercise = invocation.getArgument(0);
+                    boolean duplicateExists = exercisesById.values().stream()
+                            .anyMatch(existing -> existing.getUserId().equals(exercise.getUserId())
+                                    && existing.getNameNormalized().equals(exercise.getNameNormalized()));
+                    if (duplicateExists) {
+                        throw new DuplicateKeyException("duplicate exercise");
+                    }
+
+                    ExerciseDocument saved = ExerciseDocument.builder()
+                            .id(UUID.randomUUID().toString())
+                            .userId(exercise.getUserId())
+                            .name(exercise.getName())
+                            .category(exercise.getCategory())
+                            .description(exercise.getDescription())
+                            .createdAt(Instant.parse("2026-04-07T12:00:00Z"))
+                            .updatedAt(Instant.parse("2026-04-07T12:00:00Z"))
+                            .build();
+                    exercisesById.put(saved.getId(), saved);
+                    return saved;
+                });
+
+        Mockito.lenient().when(exerciseRepository.findAllByUserId(anyString(), any(Pageable.class)))
+                .thenAnswer(invocation -> {
+                    String userId = invocation.getArgument(0);
+                    Pageable pageable = invocation.getArgument(1);
+
+                    List<ExerciseDocument> filtered = exercisesById.values().stream()
+                            .filter(exercise -> exercise.getUserId().equals(userId))
+                            .sorted(comparatorFor(pageable))
+                            .toList();
+
+                    int start = Math.min((int) pageable.getOffset(), filtered.size());
+                    int end = Math.min(start + pageable.getPageSize(), filtered.size());
+
+                    return new PageImpl<>(filtered.subList(start, end), pageable, filtered.size());
+                });
+
+        Mockito.lenient().when(exerciseRepository.findByIdAndUserId(anyString(), anyString()))
+                .thenAnswer(invocation -> Optional.ofNullable(exercisesById.get(invocation.getArgument(0)))
+                        .filter(exercise -> exercise.getUserId().equals(invocation.getArgument(1))));
+
+        Mockito.lenient().doAnswer(invocation -> {
+            ExerciseDocument exercise = invocation.getArgument(0);
+            exercisesById.remove(exercise.getId());
+            return null;
+        }).when(exerciseRepository).delete(any(ExerciseDocument.class));
+
+        Mockito.lenient().when(exerciseReferenceChecker.isExerciseInUse(anyString())).thenReturn(false);
+    }
+
+    @Test
+    @DisplayName("should create exercise for authenticated user")
+    void createExerciseSuccess() throws Exception {
+        CreateExerciseRequest request = new CreateExerciseRequest(" Bench Press ", " CHEST ", null);
+
+        mockMvc.perform(post("/api/exercises")
+                        .header("Authorization", bearerToken(USER_EMAIL))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.name").value("Bench Press"))
+                .andExpect(jsonPath("$.category").value("CHEST"));
+
+        ExerciseDocument saved = exercisesById.values().stream()
+                .filter(exercise -> exercise.getUserId().equals(USER_ID))
+                .filter(exercise -> exercise.getNameNormalized().equals("bench press"))
+                .findFirst()
+                .orElse(null);
+
+        assertThat(saved).isNotNull();
+        assertThat(saved.getUserId()).isEqualTo(USER_ID);
+        assertThat(saved.getName()).isEqualTo("Bench Press");
+        assertThat(saved.getNameNormalized()).isEqualTo("bench press");
+        assertThat(saved.getCategory()).isEqualTo("CHEST");
+    }
+
+    @Test
+    @DisplayName("should reject duplicate normalized name for the same user")
+    void createExerciseDuplicateForSameUser() throws Exception {
+        insertExercise("existing", USER_ID, "Bench Press", "CHEST", Instant.parse("2026-04-05T12:00:00Z"));
+
+        CreateExerciseRequest request = new CreateExerciseRequest("  BENCH PRESS  ", "CHEST", null);
+
+        mockMvc.perform(post("/api/exercises")
+                        .header("Authorization", bearerToken(USER_EMAIL))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("Exercise with this name already exists."));
+    }
+
+    @Test
+    @DisplayName("should allow same normalized name for a different user")
+    void createExerciseAllowsSameNameForDifferentUser() throws Exception {
+        insertExercise("existing", USER_ID, "Bench Press", "CHEST", Instant.parse("2026-04-05T12:00:00Z"));
+
+        CreateExerciseRequest request = new CreateExerciseRequest("bench press", "CHEST", null);
+
+        mockMvc.perform(post("/api/exercises")
+                        .header("Authorization", bearerToken(OTHER_USER_EMAIL))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.name").value("bench press"));
+
+        assertThat(exercisesById.values().stream()
+                .filter(exercise -> exercise.getNameNormalized().equals("bench press"))
+                .map(ExerciseDocument::getUserId)
+                .toList()).containsExactlyInAnyOrder(USER_ID, OTHER_USER_ID);
+    }
+
+    @Test
+    @DisplayName("should reject blank exercise name")
+    void createExerciseBlankName() throws Exception {
+        CreateExerciseRequest request = new CreateExerciseRequest(" ", "CHEST", null);
+
+        mockMvc.perform(post("/api/exercises")
+                        .header("Authorization", bearerToken(USER_EMAIL))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("should translate duplicate key race into conflict")
+    void createExerciseDuplicateKeyRace() throws Exception {
+        Mockito.when(exerciseRepository.save(any(ExerciseDocument.class)))
+                .thenThrow(new DuplicateKeyException("duplicate exercise"));
+
+        CreateExerciseRequest request = new CreateExerciseRequest("Bench Press", "CHEST", null);
+
+        mockMvc.perform(post("/api/exercises")
+                        .header("Authorization", bearerToken(USER_EMAIL))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("Exercise with this name already exists."));
+    }
+
+    @Test
+    @DisplayName("should list only authenticated users exercises")
+    void getExercisesReturnsAuthenticatedUserExercises() throws Exception {
+        insertExercise("exercise-1", USER_ID, "Bench Press", "CHEST", Instant.parse("2026-04-05T12:00:00Z"));
+        insertExercise("exercise-2", USER_ID, "Squat", "LEGS", Instant.parse("2026-04-06T12:00:00Z"));
+        insertExercise("exercise-3", OTHER_USER_ID, "Deadlift", "BACK", Instant.parse("2026-04-07T12:00:00Z"));
+
+        mockMvc.perform(get("/api/exercises")
+                        .header("Authorization", bearerToken(USER_EMAIL)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.items[0].name").value("Bench Press"))
+                .andExpect(jsonPath("$.items[1].name").value("Squat"))
+                .andExpect(jsonPath("$.totalElements").value(2))
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(20));
+    }
+
+    @Test
+    @DisplayName("should paginate exercises")
+    void getExercisesPaginatesResults() throws Exception {
+        insertExercise("exercise-1", USER_ID, "Bench Press", "CHEST", Instant.parse("2026-04-05T12:00:00Z"));
+        insertExercise("exercise-2", USER_ID, "Overhead Press", "SHOULDERS", Instant.parse("2026-04-06T12:00:00Z"));
+        insertExercise("exercise-3", USER_ID, "Squat", "LEGS", Instant.parse("2026-04-07T12:00:00Z"));
+
+        mockMvc.perform(get("/api/exercises")
+                        .header("Authorization", bearerToken(USER_EMAIL))
+                        .queryParam("page", "1")
+                        .queryParam("size", "2")
+                        .queryParam("sort", "name")
+                        .queryParam("direction", "asc"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].name").value("Squat"))
+                .andExpect(jsonPath("$.page").value(1))
+                .andExpect(jsonPath("$.size").value(2))
+                .andExpect(jsonPath("$.totalElements").value(3))
+                .andExpect(jsonPath("$.totalPages").value(2));
+    }
+
+    @Test
+    @DisplayName("should sort exercises by createdAt descending")
+    void getExercisesSortsResults() throws Exception {
+        insertExercise("exercise-1", USER_ID, "Bench Press", "CHEST", Instant.parse("2026-04-05T12:00:00Z"));
+        insertExercise("exercise-2", USER_ID, "Squat", "LEGS", Instant.parse("2026-04-07T12:00:00Z"));
+        insertExercise("exercise-3", USER_ID, "Deadlift", "BACK", Instant.parse("2026-04-06T12:00:00Z"));
+
+        mockMvc.perform(get("/api/exercises")
+                        .header("Authorization", bearerToken(USER_EMAIL))
+                        .queryParam("sort", "createdAt")
+                        .queryParam("direction", "desc"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].name").value("Squat"))
+                .andExpect(jsonPath("$.items[1].name").value("Deadlift"))
+                .andExpect(jsonPath("$.items[2].name").value("Bench Press"));
+    }
+
+    @Test
+    @DisplayName("should reject invalid pagination parameters when listing exercises")
+    void getExercisesRejectsInvalidPagination() throws Exception {
+        mockMvc.perform(get("/api/exercises")
+                        .header("Authorization", bearerToken(USER_EMAIL))
+                        .queryParam("size", "101"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Size must be between 1 and 100."));
+    }
+
+    @Test
+    @DisplayName("should reject invalid sort field when listing exercises")
+    void getExercisesRejectsInvalidSort() throws Exception {
+        mockMvc.perform(get("/api/exercises")
+                        .header("Authorization", bearerToken(USER_EMAIL))
+                        .queryParam("sort", "category"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Sort must be one of: name, createdAt."));
+    }
+
+    @Test
+    @DisplayName("should delete authenticated users exercise")
+    void deleteExerciseSuccess() throws Exception {
+        insertExercise("exercise-1", USER_ID, "Bench Press", "CHEST", Instant.parse("2026-04-05T12:00:00Z"));
+
+        mockMvc.perform(delete("/api/exercises/exercise-1")
+                        .header("Authorization", bearerToken(USER_EMAIL)))
+                .andExpect(status().isNoContent());
+
+        assertThat(exercisesById).doesNotContainKey("exercise-1");
+    }
+
+    @Test
+    @DisplayName("should return not found when exercise does not exist")
+    void deleteExerciseMissing() throws Exception {
+        mockMvc.perform(delete("/api/exercises/missing")
+                        .header("Authorization", bearerToken(USER_EMAIL)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("Exercise not found."));
+    }
+
+    @Test
+    @DisplayName("should return not found when exercise belongs to another user")
+    void deleteExerciseOfAnotherUser() throws Exception {
+        insertExercise("exercise-1", OTHER_USER_ID, "Bench Press", "CHEST", Instant.parse("2026-04-05T12:00:00Z"));
+
+        mockMvc.perform(delete("/api/exercises/exercise-1")
+                        .header("Authorization", bearerToken(USER_EMAIL)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("Exercise not found."));
+
+        assertThat(exercisesById).containsKey("exercise-1");
+    }
+
+    @Test
+    @DisplayName("should block deleting exercise that is in use")
+    void deleteExerciseInUse() throws Exception {
+        insertExercise("exercise-1", USER_ID, "Bench Press", "CHEST", Instant.parse("2026-04-05T12:00:00Z"));
+        Mockito.when(exerciseReferenceChecker.isExerciseInUse("exercise-1")).thenReturn(true);
+
+        mockMvc.perform(delete("/api/exercises/exercise-1")
+                        .header("Authorization", bearerToken(USER_EMAIL)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("Exercise cannot be deleted because it is used in existing workouts."));
+
+        assertThat(exercisesById).containsKey("exercise-1");
+    }
+
+    private UserDocument createUser(String id, String email) {
+        return UserDocument.builder()
+                .id(id)
+                .email(email)
+                .provider(UserProvider.LOCAL)
+                .roles(List.of("ROLE_USER"))
+                .build();
+    }
+
+    private String bearerToken(String email) {
+        return "Bearer " + jwtService.generateToken(email, List.of("ROLE_USER"));
+    }
+
+    private void insertExercise(String id, String userId, String name, String category, Instant createdAt) {
+        ExerciseDocument exercise = ExerciseDocument.builder()
+                .id(id)
+                .userId(userId)
+                .name(name)
+                .category(category)
+                .createdAt(createdAt)
+                .updatedAt(createdAt)
+                .build();
+        exercisesById.put(id, exercise);
+    }
+
+    private Comparator<ExerciseDocument> comparatorFor(Pageable pageable) {
+        Sort.Order order = pageable.getSort().stream()
+                .findFirst()
+                .orElse(Sort.Order.asc("nameNormalized"));
+
+        Comparator<ExerciseDocument> comparator = switch (order.getProperty()) {
+            case "createdAt" -> Comparator.comparing(ExerciseDocument::getCreatedAt);
+            case "nameNormalized" -> Comparator.comparing(ExerciseDocument::getNameNormalized);
+            default -> Comparator.comparing(ExerciseDocument::getId);
+        };
+
+        return order.isAscending() ? comparator : comparator.reversed();
+    }
+}
