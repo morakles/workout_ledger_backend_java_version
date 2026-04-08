@@ -76,7 +76,7 @@ public class ExerciseDocument {
         setName(name);
         this.nameNormalized = normalizeName(this.name);
         setDescription(description);
-        this.category = trim(category);
+        setCategory(category);
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
