@@ -2,7 +2,6 @@ package eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.context.support.DefaultMessageSourceResolvable;
@@ -24,6 +23,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<ApiErrorResponse> handleAuthentication(AuthenticationException ex, HttpServletRequest request) {
         return buildResponse(HttpStatus.UNAUTHORIZED, ex.getMessage(), request);
+    }
+
+    @ExceptionHandler(UserAlreadyExistsException.class)
+    public ResponseEntity<ApiErrorResponse> handleUserAlreadyExists(UserAlreadyExistsException ex,
+                                                                    HttpServletRequest request) {
+        return buildResponse(HttpStatus.CONFLICT, ex.getMessage(), request);
     }
 
     @ExceptionHandler(ExerciseAlreadyExistsException.class)
@@ -51,11 +56,6 @@ public class GlobalExceptionHandler {
                 .map(DefaultMessageSourceResolvable::getDefaultMessage)
                 .orElse("Validation failed");
         return buildResponse(HttpStatus.BAD_REQUEST, message, request);
-    }
-
-    @ExceptionHandler(DuplicateKeyException.class)
-    public ResponseEntity<ApiErrorResponse> handleDuplicate(HttpServletRequest request) {
-        return buildResponse(HttpStatus.CONFLICT, "A user with this email already exists.", request);
     }
 
     @ExceptionHandler(Exception.class)
