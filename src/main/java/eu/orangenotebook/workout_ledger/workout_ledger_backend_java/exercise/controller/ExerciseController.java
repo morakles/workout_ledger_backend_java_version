@@ -1,11 +1,9 @@
 package eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exercise.controller;
 
-import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exercise.model.ExerciseDocument;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exercise.service.ExerciseService;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -17,8 +15,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/exercises")
@@ -32,28 +31,23 @@ public class ExerciseController {
     @PostMapping
     public ResponseEntity<ExerciseResponse> createExercise(@Valid @RequestBody CreateExerciseRequest request,
                                                            Authentication authentication) {
-        ExerciseDocument createdExercise = exerciseService.createExercise(authentication.getName(), request);
+        var createdExercise = exerciseService.createExercise(authentication.getName(), request);
         return ResponseEntity.status(HttpStatus.CREATED).body(ExerciseResponse.from(createdExercise));
     }
 
     @GetMapping
-    public ResponseEntity<ExercisePageResponse> getExercises(Authentication authentication,
-                                                             @RequestParam(defaultValue = "0") String page,
-                                                             @RequestParam(defaultValue = "20") String size,
-                                                             @RequestParam(required = false) String sort,
-                                                             @RequestParam(required = false) String direction) {
-        Page<ExerciseDocument> exercisePage = exerciseService.getExercises(
-                authentication.getName(),
-                new ExerciseListRequest(page, size, sort, direction)
-        );
-        return ResponseEntity.ok(ExercisePageResponse.from(exercisePage));
+    public ResponseEntity<List<ExerciseListItemResponse>> getExercises(Authentication authentication) {
+        List<ExerciseListItemResponse> exercises = exerciseService.listExercises(authentication.getName()).stream()
+                .map(ExerciseListItemResponse::from)
+                .toList();
+        return ResponseEntity.ok(exercises);
     }
 
     @PutMapping("/{exerciseId}")
     public ResponseEntity<ExerciseResponse> updateExercise(@PathVariable String exerciseId,
                                                            @Valid @RequestBody UpdateExerciseRequest request,
                                                            Authentication authentication) {
-        ExerciseDocument updatedExercise = exerciseService.updateExercise(authentication.getName(), exerciseId, request);
+        var updatedExercise = exerciseService.updateExercise(authentication.getName(), exerciseId, request);
         return ResponseEntity.ok(ExerciseResponse.from(updatedExercise));
     }
 

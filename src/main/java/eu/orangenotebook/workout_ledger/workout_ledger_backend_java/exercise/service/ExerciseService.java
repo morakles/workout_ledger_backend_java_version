@@ -60,6 +60,11 @@ public class ExerciseService {
         return saveExercise(exerciseDocument);
     }
 
+    public List<ExerciseDocument> listExercises(String authenticatedEmail) {
+        UserDocument user = getAuthenticatedUser(authenticatedEmail);
+        return exerciseRepository.findAllByUserIdOrderByNameNormalizedAsc(user.getId());
+    }
+
     public Page<ExerciseDocument> getExercises(String authenticatedEmail, ExerciseListRequest request) {
         UserDocument user = getAuthenticatedUser(authenticatedEmail);
         Pageable pageable = createPageable(request);

@@ -23,8 +23,10 @@ import java.time.Instant;
 import java.util.List;
 
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -51,6 +53,40 @@ class ExerciseControllerTest {
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setValidator(validator)
                 .build();
+    }
+
+    @Test
+    @DisplayName("get endpoint should return exercise list items")
+    void getExercisesSuccess() throws Exception {
+        List<ExerciseDocument> exercises = List.of(
+                ExerciseDocument.builder()
+                        .id("exercise-1")
+                        .userId("user-1")
+                        .name("Bench Press")
+                        .category("CHEST")
+                        .build(),
+                ExerciseDocument.builder()
+                        .id("exercise-2")
+                        .userId("user-1")
+                        .name("Squat")
+                        .category("LEGS")
+                        .build()
+        );
+        when(exerciseService.listExercises(USER_EMAIL)).thenReturn(exercises);
+
+        mockMvc.perform(get("/api/exercises")
+                        .principal(authentication()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].id").value("exercise-1"))
+                .andExpect(jsonPath("$[0].name").value("Bench Press"))
+                .andExpect(jsonPath("$[0].category").value("CHEST"))
+                .andExpect(jsonPath("$[1].id").value("exercise-2"))
+                .andExpect(jsonPath("$[1].name").value("Squat"))
+                .andExpect(jsonPath("$[1].category").value("LEGS"));
+
+        verify(exerciseService).listExercises(USER_EMAIL);
+        verifyNoMoreInteractions(exerciseService);
     }
 
     @Test

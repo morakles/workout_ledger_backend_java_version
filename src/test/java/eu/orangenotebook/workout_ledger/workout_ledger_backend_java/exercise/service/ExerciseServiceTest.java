@@ -66,6 +66,20 @@ class ExerciseServiceTest {
     }
 
     @Test
+    @DisplayName("should list exercises only for authenticated user sorted by normalized name")
+    void listExercisesUsesAuthenticatedUserId() {
+        ExerciseDocument benchPress = exercise("exercise-1", "Bench Press", Instant.parse("2026-04-05T12:00:00Z"));
+        ExerciseDocument squat = exercise("exercise-2", "Squat", Instant.parse("2026-04-06T12:00:00Z"));
+        when(exerciseRepository.findAllByUserIdOrderByNameNormalizedAsc(USER_ID))
+                .thenReturn(List.of(benchPress, squat));
+
+        List<ExerciseDocument> result = exerciseService.listExercises(USER_EMAIL);
+
+        verify(exerciseRepository).findAllByUserIdOrderByNameNormalizedAsc(USER_ID);
+        assertThat(result).containsExactly(benchPress, squat);
+    }
+
+    @Test
     @DisplayName("should fetch exercises only for authenticated user with default pagination")
     void getExercisesUsesAuthenticatedUserId() {
         when(exerciseRepository.findAllByUserId(eq(USER_ID), any(Pageable.class)))

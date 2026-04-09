@@ -135,6 +135,12 @@ class ExerciseControllerIntegrationTest {
                     return new PageImpl<>(filtered.subList(start, end), pageable, filtered.size());
                 });
 
+        Mockito.lenient().when(exerciseRepository.findAllByUserIdOrderByNameNormalizedAsc(anyString()))
+                .thenAnswer(invocation -> exercisesById.values().stream()
+                        .filter(exercise -> exercise.getUserId().equals(invocation.getArgument(0)))
+                        .sorted(Comparator.comparing(ExerciseDocument::getNameNormalized))
+                        .toList());
+
         Mockito.lenient().when(exerciseRepository.findByIdAndUserId(anyString(), anyString()))
                 .thenAnswer(invocation -> Optional.ofNullable(exercisesById.get(invocation.getArgument(0)))
                         .filter(exercise -> exercise.getUserId().equals(invocation.getArgument(1))));
@@ -247,71 +253,37 @@ class ExerciseControllerIntegrationTest {
         mockMvc.perform(get("/api/exercises")
                         .header("Authorization", bearerToken(USER_EMAIL)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items.length()").value(2))
-                .andExpect(jsonPath("$.items[0].name").value("Bench Press"))
-                .andExpect(jsonPath("$.items[1].name").value("Squat"))
-                .andExpect(jsonPath("$.totalElements").value(2))
-                .andExpect(jsonPath("$.page").value(0))
-                .andExpect(jsonPath("$.size").value(20));
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].id").value("exercise-1"))
+                .andExpect(jsonPath("$[0].name").value("Bench Press"))
+                .andExpect(jsonPath("$[0].category").value("CHEST"))
+                .andExpect(jsonPath("$[1].id").value("exercise-2"))
+                .andExpect(jsonPath("$[1].name").value("Squat"))
+                .andExpect(jsonPath("$[1].category").value("LEGS"));
     }
 
     @Test
-    @DisplayName("should paginate exercises")
-    void getExercisesPaginatesResults() throws Exception {
-        insertExercise("exercise-1", USER_ID, "Bench Press", "CHEST", Instant.parse("2026-04-05T12:00:00Z"));
-        insertExercise("exercise-2", USER_ID, "Overhead Press", "SHOULDERS", Instant.parse("2026-04-06T12:00:00Z"));
-        insertExercise("exercise-3", USER_ID, "Squat", "LEGS", Instant.parse("2026-04-07T12:00:00Z"));
-
-        mockMvc.perform(get("/api/exercises")
-                        .header("Authorization", bearerToken(USER_EMAIL))
-                        .queryParam("page", "1")
-                        .queryParam("size", "2")
-                        .queryParam("sort", "name")
-                        .queryParam("direction", "asc"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items.length()").value(1))
-                .andExpect(jsonPath("$.items[0].name").value("Squat"))
-                .andExpect(jsonPath("$.page").value(1))
-                .andExpect(jsonPath("$.size").value(2))
-                .andExpect(jsonPath("$.totalElements").value(3))
-                .andExpect(jsonPath("$.totalPages").value(2));
-    }
-
-    @Test
-    @DisplayName("should sort exercises by createdAt descending")
+    @DisplayName("should sort exercises by normalized name ascending")
     void getExercisesSortsResults() throws Exception {
-        insertExercise("exercise-1", USER_ID, "Bench Press", "CHEST", Instant.parse("2026-04-05T12:00:00Z"));
-        insertExercise("exercise-2", USER_ID, "Squat", "LEGS", Instant.parse("2026-04-07T12:00:00Z"));
-        insertExercise("exercise-3", USER_ID, "Deadlift", "BACK", Instant.parse("2026-04-06T12:00:00Z"));
+        insertExercise("exercise-1", USER_ID, "squat", "LEGS", Instant.parse("2026-04-05T12:00:00Z"));
+        insertExercise("exercise-2", USER_ID, " Bench Press ", "CHEST", Instant.parse("2026-04-07T12:00:00Z"));
+        insertExercise("exercise-3", USER_ID, "deadlift", "BACK", Instant.parse("2026-04-06T12:00:00Z"));
 
         mockMvc.perform(get("/api/exercises")
-                        .header("Authorization", bearerToken(USER_EMAIL))
-                        .queryParam("sort", "createdAt")
-                        .queryParam("direction", "desc"))
+                        .header("Authorization", bearerToken(USER_EMAIL)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items[0].name").value("Squat"))
-                .andExpect(jsonPath("$.items[1].name").value("Deadlift"))
-                .andExpect(jsonPath("$.items[2].name").value("Bench Press"));
+                .andExpect(jsonPath("$[0].name").value("Bench Press"))
+                .andExpect(jsonPath("$[1].name").value("deadlift"))
+                .andExpect(jsonPath("$[2].name").value("squat"));
     }
 
     @Test
-    @DisplayName("should reject invalid pagination parameters when listing exercises")
-    void getExercisesRejectsInvalidPagination() throws Exception {
+    @DisplayName("should return 401 when listing exercises without authentication")
+    void getExercisesRequiresAuthentication() throws Exception {
         mockMvc.perform(get("/api/exercises")
-                        .header("Authorization", bearerToken(USER_EMAIL))
-                        .queryParam("size", "101"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("Size must be between 1 and 100."));
-    }
-
-    @Test
-    @DisplayName("should reject invalid sort field when listing exercises")
-    void getExercisesRejectsInvalidSort() throws Exception {
-        mockMvc.perform(get("/api/exercises")
-                        .header("Authorization", bearerToken(USER_EMAIL))
-                        .queryParam("sort", "category"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("Sort must be one of: name, createdAt."));
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.message").value("Unauthorized"));
     }
 
     @Test
