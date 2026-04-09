@@ -1,6 +1,7 @@
 package eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.service;
 
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exception.AuthenticationException;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exception.UserAlreadyExistsException;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.security.GoogleTokenVerifier;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.security.JwtService;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.controller.GoogleLoginRequest;
@@ -37,7 +38,7 @@ public class UserService {
 
         userRepository.findByEmail(normalizedEmail).ifPresent(existing -> {
             if (existing.getProvider() == UserProvider.LOCAL) {
-                throw new IllegalArgumentException("Invalid credentials");
+                throw new UserAlreadyExistsException("User with this email already exists.");
             } else {
                 throw new IllegalArgumentException("Email is registered with Google. Use Google login instead.");
             }
@@ -56,7 +57,7 @@ public class UserService {
             return saved;
         } catch (DuplicateKeyException e) {
             log.warn("Registration failed: email already exists {}", normalizedEmail);
-            throw e;
+            throw new UserAlreadyExistsException("User with this email already exists.");
         }
     }
 

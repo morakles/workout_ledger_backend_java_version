@@ -29,6 +29,10 @@ import java.util.Locale;
         @CompoundIndex(
                 name = "idx_exercises_user_category",
                 def = "{'userId': 1, 'category': 1}"
+        ),
+        @CompoundIndex(
+                name = "idx_exercises_user_created_at",
+                def = "{'userId': 1, 'createdAt': -1}"
         )
 })
 public class ExerciseDocument {
@@ -72,7 +76,7 @@ public class ExerciseDocument {
         setName(name);
         this.nameNormalized = normalizeName(this.name);
         setDescription(description);
-        this.category = trim(category);
+        setCategory(category);
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }

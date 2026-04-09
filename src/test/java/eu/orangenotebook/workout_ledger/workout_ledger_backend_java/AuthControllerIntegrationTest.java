@@ -1,6 +1,7 @@
 package eu.orangenotebook.workout_ledger.workout_ledger_backend_java;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exercise.repository.ExerciseRepository;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.controller.GoogleLoginRequest;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.controller.LoginRequest;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.controller.RegisterLocalUserRequest;
@@ -13,6 +14,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DuplicateKeyException;
 
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -43,6 +45,9 @@ class AuthControllerIntegrationTest {
 
     @MockitoBean
     UserRepository userRepository;
+
+    @MockitoBean
+    ExerciseRepository exerciseRepository;
 
     @Autowired
     ObjectMapper objectMapper;
@@ -158,7 +163,23 @@ class AuthControllerIntegrationTest {
             mockMvc.perform(post("/api/auth/register")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(req)))
-                    .andExpect(status().isBadRequest());
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.message").value("User with this email already exists."));
+        }
+
+        @Test
+        @DisplayName("should translate duplicate key race during register into conflict")
+        void registerDuplicateKeyRace() throws Exception {
+            Mockito.doThrow(new DuplicateKeyException("duplicate user"))
+                    .when(userRepository).save(any(UserDocument.class));
+
+            RegisterLocalUserRequest req = new RegisterLocalUserRequest("user@email.com", "password123");
+
+            mockMvc.perform(post("/api/auth/register")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(req)))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.message").value("User with this email already exists."));
         }
 
         @Test
