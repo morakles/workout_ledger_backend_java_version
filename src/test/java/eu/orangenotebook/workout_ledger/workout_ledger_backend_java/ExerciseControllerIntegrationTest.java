@@ -2,6 +2,7 @@ package eu.orangenotebook.workout_ledger.workout_ledger_backend_java;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exercise.controller.CreateExerciseRequest;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exercise.controller.UpdateExerciseRequest;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exercise.model.ExerciseDocument;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exercise.repository.ExerciseRepository;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exercise.service.ExerciseReferenceChecker;
@@ -28,6 +29,7 @@ import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -38,6 +40,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -93,20 +96,24 @@ class ExerciseControllerIntegrationTest {
                 .thenAnswer(invocation -> {
                     ExerciseDocument exercise = invocation.getArgument(0);
                     boolean duplicateExists = exercisesById.values().stream()
+                            .filter(existing -> !Objects.equals(existing.getId(), exercise.getId()))
                             .anyMatch(existing -> existing.getUserId().equals(exercise.getUserId())
                                     && existing.getNameNormalized().equals(exercise.getNameNormalized()));
                     if (duplicateExists) {
                         throw new DuplicateKeyException("duplicate exercise");
                     }
 
+                    Instant createdAt = exercise.getCreatedAt() != null
+                            ? exercise.getCreatedAt()
+                            : Instant.parse("2026-04-07T12:00:00Z");
                     ExerciseDocument saved = ExerciseDocument.builder()
-                            .id(UUID.randomUUID().toString())
+                            .id(exercise.getId() != null ? exercise.getId() : UUID.randomUUID().toString())
                             .userId(exercise.getUserId())
                             .name(exercise.getName())
                             .category(exercise.getCategory())
                             .description(exercise.getDescription())
-                            .createdAt(Instant.parse("2026-04-07T12:00:00Z"))
-                            .updatedAt(Instant.parse("2026-04-07T12:00:00Z"))
+                            .createdAt(createdAt)
+                            .updatedAt(Instant.parse("2026-04-08T12:00:00Z"))
                             .build();
                     exercisesById.put(saved.getId(), saved);
                     return saved;
@@ -353,6 +360,106 @@ class ExerciseControllerIntegrationTest {
                 .andExpect(jsonPath("$.message").value("Exercise cannot be deleted because it is used in existing workouts."));
 
         assertThat(exercisesById).containsKey("exercise-1");
+    }
+
+    @Test
+    @DisplayName("should update authenticated users exercise")
+    void updateExerciseSuccess() throws Exception {
+        insertExercise("exercise-1", USER_ID, "Bench Press", "CHEST", Instant.parse("2026-04-05T12:00:00Z"));
+        UpdateExerciseRequest request = new UpdateExerciseRequest(" Incline Bench Press ", "UPPER CHEST", " Upper chest pressing ");
+
+        mockMvc.perform(put("/api/exercises/exercise-1")
+                        .header("Authorization", bearerToken(USER_EMAIL))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value("exercise-1"))
+                .andExpect(jsonPath("$.name").value("Incline Bench Press"))
+                .andExpect(jsonPath("$.category").value("UPPER CHEST"))
+                .andExpect(jsonPath("$.description").value("Upper chest pressing"));
+
+        ExerciseDocument updated = exercisesById.get("exercise-1");
+        assertThat(updated).isNotNull();
+        assertThat(updated.getName()).isEqualTo("Incline Bench Press");
+        assertThat(updated.getNameNormalized()).isEqualTo("incline bench press");
+        assertThat(updated.getCategory()).isEqualTo("UPPER CHEST");
+        assertThat(updated.getDescription()).isEqualTo("Upper chest pressing");
+    }
+
+    @Test
+    @DisplayName("should return not found when updated exercise does not exist")
+    void updateExerciseMissing() throws Exception {
+        UpdateExerciseRequest request = new UpdateExerciseRequest("Incline Bench Press", "CHEST", "Upper chest pressing");
+
+        mockMvc.perform(put("/api/exercises/missing")
+                        .header("Authorization", bearerToken(USER_EMAIL))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("Exercise not found."));
+    }
+
+    @Test
+    @DisplayName("should return not found when updated exercise belongs to another user")
+    void updateExerciseOfAnotherUser() throws Exception {
+        insertExercise("exercise-1", OTHER_USER_ID, "Bench Press", "CHEST", Instant.parse("2026-04-05T12:00:00Z"));
+        UpdateExerciseRequest request = new UpdateExerciseRequest("Incline Bench Press", "CHEST", "Upper chest pressing");
+
+        mockMvc.perform(put("/api/exercises/exercise-1")
+                        .header("Authorization", bearerToken(USER_EMAIL))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("Exercise not found."));
+
+        assertThat(exercisesById.get("exercise-1").getName()).isEqualTo("Bench Press");
+    }
+
+    @Test
+    @DisplayName("should reject duplicate normalized name during update")
+    void updateExerciseDuplicateName() throws Exception {
+        insertExercise("exercise-1", USER_ID, "Bench Press", "CHEST", Instant.parse("2026-04-05T12:00:00Z"));
+        insertExercise("exercise-2", USER_ID, "Squat", "LEGS", Instant.parse("2026-04-06T12:00:00Z"));
+        UpdateExerciseRequest request = new UpdateExerciseRequest("  SQUAT  ", "CHEST", "Upper chest pressing");
+
+        mockMvc.perform(put("/api/exercises/exercise-1")
+                        .header("Authorization", bearerToken(USER_EMAIL))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("Exercise with this name already exists."));
+
+        assertThat(exercisesById.get("exercise-1").getName()).isEqualTo("Bench Press");
+        assertThat(exercisesById.get("exercise-1").getNameNormalized()).isEqualTo("bench press");
+    }
+
+    @Test
+    @DisplayName("should reject invalid payload when updating exercise")
+    void updateExerciseBlankName() throws Exception {
+        UpdateExerciseRequest request = new UpdateExerciseRequest(" ", "CHEST", "Upper chest pressing");
+
+        mockMvc.perform(put("/api/exercises/exercise-1")
+                        .header("Authorization", bearerToken(USER_EMAIL))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("must not be blank"));
+    }
+
+    @Test
+    @DisplayName("should translate duplicate key race during update into conflict")
+    void updateExerciseDuplicateKeyRace() throws Exception {
+        insertExercise("exercise-1", USER_ID, "Bench Press", "CHEST", Instant.parse("2026-04-05T12:00:00Z"));
+        Mockito.when(exerciseRepository.save(any(ExerciseDocument.class)))
+                .thenThrow(new DuplicateKeyException("duplicate exercise"));
+        UpdateExerciseRequest request = new UpdateExerciseRequest("Incline Bench Press", "CHEST", "Upper chest pressing");
+
+        mockMvc.perform(put("/api/exercises/exercise-1")
+                        .header("Authorization", bearerToken(USER_EMAIL))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("Exercise with this name already exists."));
     }
 
     private UserDocument createUser(String id, String email) {

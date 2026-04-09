@@ -6,6 +6,7 @@ import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exception.Ex
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exception.ExerciseNotFoundException;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exercise.controller.CreateExerciseRequest;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exercise.controller.ExerciseListRequest;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exercise.controller.UpdateExerciseRequest;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exercise.model.ExerciseDocument;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exercise.repository.ExerciseRepository;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.model.UserDocument;
@@ -22,6 +23,7 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 @Service
@@ -54,17 +56,8 @@ public class ExerciseService {
                 .description(request.description())
                 .build();
 
-        if (exerciseRepository.existsByUserIdAndNameNormalized(user.getId(), exerciseDocument.getNameNormalized())) {
-            throw new ExerciseAlreadyExistsException("Exercise with this name already exists.");
-        }
-
-        try {
-            return exerciseRepository.save(exerciseDocument);
-        } catch (DuplicateKeyException ex) {
-            log.info("Exercise create race detected for userId={} nameNormalized={}",
-                    user.getId(), exerciseDocument.getNameNormalized());
-            throw new ExerciseAlreadyExistsException("Exercise with this name already exists.");
-        }
+        ensureExerciseNameIsAvailable(user.getId(), exerciseDocument.getNameNormalized());
+        return saveExercise(exerciseDocument);
     }
 
     public Page<ExerciseDocument> getExercises(String authenticatedEmail, ExerciseListRequest request) {
@@ -73,10 +66,25 @@ public class ExerciseService {
         return exerciseRepository.findAllByUserId(user.getId(), pageable);
     }
 
+    public ExerciseDocument updateExercise(String authenticatedEmail, String exerciseId, UpdateExerciseRequest request) {
+        UserDocument user = getAuthenticatedUser(authenticatedEmail);
+        ExerciseDocument exercise = getUserExercise(exerciseId, user.getId());
+        String updatedNameNormalized = normalizeName(request.name());
+
+        if (!Objects.equals(exercise.getNameNormalized(), updatedNameNormalized)) {
+            ensureExerciseNameIsAvailable(user.getId(), updatedNameNormalized);
+        }
+
+        exercise.setName(request.name());
+        exercise.setCategory(request.category());
+        exercise.setDescription(request.description());
+
+        return saveExercise(exercise);
+    }
+
     public void deleteExercise(String authenticatedEmail, String exerciseId) {
         UserDocument user = getAuthenticatedUser(authenticatedEmail);
-        ExerciseDocument exercise = exerciseRepository.findByIdAndUserId(exerciseId, user.getId())
-                .orElseThrow(() -> new ExerciseNotFoundException("Exercise not found."));
+        ExerciseDocument exercise = getUserExercise(exerciseId, user.getId());
 
         if (isExerciseInUse(exercise.getId())) {
             throw new ExerciseInUseException("Exercise cannot be deleted because it is used in existing workouts.");
@@ -85,9 +93,30 @@ public class ExerciseService {
         exerciseRepository.delete(exercise);
     }
 
+    private ExerciseDocument getUserExercise(String exerciseId, String userId) {
+        return exerciseRepository.findByIdAndUserId(exerciseId, userId)
+                .orElseThrow(() -> new ExerciseNotFoundException("Exercise not found."));
+    }
+
     private UserDocument getAuthenticatedUser(String authenticatedEmail) {
         return userRepository.findByEmail(authenticatedEmail)
                 .orElseThrow(() -> new AuthenticationException("Authenticated user not found."));
+    }
+
+    private void ensureExerciseNameIsAvailable(String userId, String nameNormalized) {
+        if (exerciseRepository.existsByUserIdAndNameNormalized(userId, nameNormalized)) {
+            throw new ExerciseAlreadyExistsException("Exercise with this name already exists.");
+        }
+    }
+
+    private ExerciseDocument saveExercise(ExerciseDocument exerciseDocument) {
+        try {
+            return exerciseRepository.save(exerciseDocument);
+        } catch (DuplicateKeyException ex) {
+            log.info("Exercise write race detected for userId={} nameNormalized={}",
+                    exerciseDocument.getUserId(), exerciseDocument.getNameNormalized());
+            throw new ExerciseAlreadyExistsException("Exercise with this name already exists.");
+        }
     }
 
     private Pageable createPageable(ExerciseListRequest request) {
@@ -152,5 +181,9 @@ public class ExerciseService {
     private boolean isExerciseInUse(String exerciseId) {
         return exerciseReferenceCheckers.stream()
                 .anyMatch(checker -> checker.isExerciseInUse(exerciseId));
+    }
+
+    private String normalizeName(String value) {
+        return value == null ? null : value.trim().toLowerCase(Locale.ROOT);
     }
 }

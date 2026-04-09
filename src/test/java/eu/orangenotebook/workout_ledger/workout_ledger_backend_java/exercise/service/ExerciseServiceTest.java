@@ -1,9 +1,11 @@
 package eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exercise.service;
 
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exception.AuthenticationException;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exception.ExerciseAlreadyExistsException;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exception.ExerciseInUseException;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exception.ExerciseNotFoundException;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exercise.controller.ExerciseListRequest;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exercise.controller.UpdateExerciseRequest;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exercise.model.ExerciseDocument;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exercise.repository.ExerciseRepository;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.model.UserDocument;
@@ -16,6 +18,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -176,6 +179,116 @@ class ExerciseServiceTest {
                 .hasMessage("Exercise cannot be deleted because it is used in existing workouts.");
 
         verify(exerciseRepository, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("should update exercise for authenticated user")
+    void updateExerciseSuccess() {
+        ExerciseDocument exercise = exercise("exercise-1", "Bench Press", Instant.parse("2026-04-07T12:00:00Z"));
+        when(exerciseRepository.findByIdAndUserId("exercise-1", USER_ID)).thenReturn(Optional.of(exercise));
+        when(exerciseRepository.existsByUserIdAndNameNormalized(USER_ID, "incline bench press")).thenReturn(false);
+        when(exerciseRepository.save(any(ExerciseDocument.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ExerciseDocument updated = exerciseService.updateExercise(
+                USER_EMAIL,
+                "exercise-1",
+                new UpdateExerciseRequest(" Incline Bench Press ", "UPPER CHEST", " Upper chest pressing ")
+        );
+
+        assertThat(updated.getName()).isEqualTo("Incline Bench Press");
+        assertThat(updated.getNameNormalized()).isEqualTo("incline bench press");
+        assertThat(updated.getCategory()).isEqualTo("UPPER CHEST");
+        assertThat(updated.getDescription()).isEqualTo("Upper chest pressing");
+        verify(exerciseRepository).existsByUserIdAndNameNormalized(USER_ID, "incline bench press");
+        verify(exerciseRepository).save(exercise);
+    }
+
+    @Test
+    @DisplayName("should update normalized name when exercise name changes")
+    void updateExerciseUpdatesNormalizedName() {
+        ExerciseDocument exercise = exercise("exercise-1", "Bench Press", Instant.parse("2026-04-07T12:00:00Z"));
+        when(exerciseRepository.findByIdAndUserId("exercise-1", USER_ID)).thenReturn(Optional.of(exercise));
+        when(exerciseRepository.existsByUserIdAndNameNormalized(USER_ID, "front squat")).thenReturn(false);
+        when(exerciseRepository.save(any(ExerciseDocument.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ExerciseDocument updated = exerciseService.updateExercise(
+                USER_EMAIL,
+                "exercise-1",
+                new UpdateExerciseRequest(" Front Squat ", "LEGS", " Quad-dominant squat ")
+        );
+
+        assertThat(updated.getNameNormalized()).isEqualTo("front squat");
+        assertThat(updated.getDescription()).isEqualTo("Quad-dominant squat");
+    }
+
+    @Test
+    @DisplayName("should not check duplicates when normalized name does not change")
+    void updateExerciseSkipsDuplicateCheckWhenNameDoesNotChange() {
+        ExerciseDocument exercise = exercise("exercise-1", "Bench Press", Instant.parse("2026-04-07T12:00:00Z"));
+        when(exerciseRepository.findByIdAndUserId("exercise-1", USER_ID)).thenReturn(Optional.of(exercise));
+        when(exerciseRepository.save(any(ExerciseDocument.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ExerciseDocument updated = exerciseService.updateExercise(
+                USER_EMAIL,
+                "exercise-1",
+                new UpdateExerciseRequest("Bench Press", "SHOULDERS", null)
+        );
+
+        assertThat(updated.getCategory()).isEqualTo("SHOULDERS");
+        assertThat(updated.getDescription()).isNull();
+        verify(exerciseRepository, never()).existsByUserIdAndNameNormalized(anyString(), anyString());
+        verify(exerciseRepository).save(exercise);
+    }
+
+    @Test
+    @DisplayName("should throw when updated exercise name already exists")
+    void updateExerciseDuplicateName() {
+        ExerciseDocument exercise = exercise("exercise-1", "Bench Press", Instant.parse("2026-04-07T12:00:00Z"));
+        when(exerciseRepository.findByIdAndUserId("exercise-1", USER_ID)).thenReturn(Optional.of(exercise));
+        when(exerciseRepository.existsByUserIdAndNameNormalized(USER_ID, "squat")).thenReturn(true);
+
+        assertThatThrownBy(() -> exerciseService.updateExercise(
+                USER_EMAIL,
+                "exercise-1",
+                new UpdateExerciseRequest("Squat", "LEGS", null)
+        ))
+                .isInstanceOf(ExerciseAlreadyExistsException.class)
+                .hasMessage("Exercise with this name already exists.");
+
+        verify(exerciseRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("should translate duplicate key race during update into business conflict")
+    void updateExerciseDuplicateKeyRace() {
+        ExerciseDocument exercise = exercise("exercise-1", "Bench Press", Instant.parse("2026-04-07T12:00:00Z"));
+        when(exerciseRepository.findByIdAndUserId("exercise-1", USER_ID)).thenReturn(Optional.of(exercise));
+        when(exerciseRepository.existsByUserIdAndNameNormalized(USER_ID, "squat")).thenReturn(false);
+        when(exerciseRepository.save(any(ExerciseDocument.class))).thenThrow(new DuplicateKeyException("duplicate exercise"));
+
+        assertThatThrownBy(() -> exerciseService.updateExercise(
+                USER_EMAIL,
+                "exercise-1",
+                new UpdateExerciseRequest("Squat", "LEGS", null)
+        ))
+                .isInstanceOf(ExerciseAlreadyExistsException.class)
+                .hasMessage("Exercise with this name already exists.");
+    }
+
+    @Test
+    @DisplayName("should throw when updated exercise does not exist")
+    void updateExerciseNotFound() {
+        when(exerciseRepository.findByIdAndUserId("missing", USER_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> exerciseService.updateExercise(
+                USER_EMAIL,
+                "missing",
+                new UpdateExerciseRequest("Squat", "LEGS", null)
+        ))
+                .isInstanceOf(ExerciseNotFoundException.class)
+                .hasMessage("Exercise not found.");
+
+        verify(exerciseRepository, never()).save(any());
     }
 
     @Test
