@@ -2,6 +2,7 @@ package eu.orangenotebook.workout_ledger.workout_ledger_backend_java.workout.con
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exception.GlobalExceptionHandler;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.workout.model.SetType;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.workout.service.WorkoutService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -60,8 +61,8 @@ class WorkoutControllerTest {
                         "exercise-123",
                         "Dobre czucie",
                         List.of(
-                                new CreateSetEntryRequest(1, 60.0, 10, null, null),
-                                new CreateSetEntryRequest(2, 62.5, 8, null, null)
+                                new CreateSetEntryRequest(1, 60.0, 10, 60, 60.0, (double) 00, SetType.NORMAL),
+                                new CreateSetEntryRequest(2, 62.5, 8, 60, 60.0, (double) 00, SetType.NORMAL)
                         )
                 ))
         );
@@ -73,8 +74,8 @@ class WorkoutControllerTest {
                         "exercise-123",
                         "Dobre czucie",
                         List.of(
-                                new SetEntryResponse(1, 60.0, 10, null, null),
-                                new SetEntryResponse(2, 62.5, 8, null, null)
+                                new SetEntryResponse(1, 60.0, 10, null, 60.0, (double) 00, SetType.NORMAL),
+                                new SetEntryResponse(2, 62.5, 8, null, 60.0, (double) 00, SetType.NORMAL)
                         )
                 )),
                 Instant.parse("2026-04-10T07:00:00Z"),

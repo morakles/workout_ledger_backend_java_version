@@ -10,6 +10,7 @@ import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.workout.cont
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.workout.controller.CreateWorkoutEntryRequest;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.workout.controller.CreateWorkoutRequest;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.workout.controller.WorkoutResponse;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.workout.model.SetType;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.workout.model.WorkoutDocument;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.workout.repository.WorkoutRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -27,6 +28,7 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.InstanceOfAssertFactories.set;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -71,8 +73,8 @@ class WorkoutServiceTest {
                         " exercise-123 ",
                         " Dobre czucie ",
                         List.of(
-                                new CreateSetEntryRequest(1, 60.0, 10, null, null),
-                                new CreateSetEntryRequest(2, 62.5, 8, null, null)
+                                new CreateSetEntryRequest(1, 60.0, 10, 90, 60.0, 00.0, SetType.NORMAL  ),
+                                new CreateSetEntryRequest(2, 62.5, 8, 90,60.0, 00.0, SetType.DROP)
                         )
                 ))
         );
@@ -119,7 +121,7 @@ class WorkoutServiceTest {
                 List.of(new CreateWorkoutEntryRequest(
                         "missing-exercise",
                         null,
-                        List.of(new CreateSetEntryRequest(1, 60.0, 10, null, null))
+                        List.of( new CreateSetEntryRequest(1, 60.0, 10, 90, 60.0, 00.0, SetType.NORMAL  ))
                 ))
         );
         when(exerciseRepository.findAllByIdInAndUserId(Set.of("missing-exercise"), USER_ID))
@@ -141,7 +143,7 @@ class WorkoutServiceTest {
                 List.of(new CreateWorkoutEntryRequest(
                         "exercise-123",
                         null,
-                        List.of(new CreateSetEntryRequest(1, 60.0, 10, null, null))
+                        List.of( new CreateSetEntryRequest(1, 60.0, 10, 90, 60.0, 00.0, SetType.NORMAL  ))
                 ))
         );
         when(userRepository.findByEmail(USER_EMAIL)).thenReturn(Optional.empty());
