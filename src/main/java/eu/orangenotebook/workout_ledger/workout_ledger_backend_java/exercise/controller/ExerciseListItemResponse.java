@@ -5,13 +5,15 @@ import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exercise.mod
 public record ExerciseListItemResponse(
         String id,
         String name,
-        String category
+        String category,
+        String description
 ) {
     public static ExerciseListItemResponse from(ExerciseDocument exerciseDocument) {
         return new ExerciseListItemResponse(
                 exerciseDocument.getId(),
                 exerciseDocument.getName(),
-                exerciseDocument.getCategory()
+                exerciseDocument.getCategory(),
+                exerciseDocument.getDescription()
         );
     }
 }
