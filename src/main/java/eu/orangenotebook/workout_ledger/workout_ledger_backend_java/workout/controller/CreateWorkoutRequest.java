@@ -11,6 +11,6 @@ import java.util.List;
 public record CreateWorkoutRequest(
         @Size(max = 120) String name,
         @NotNull Instant workoutDate,
-        @NotEmpty List<@Valid CreateWorkoutEntryRequest> entries
+        @NotEmpty List<@NotNull @Valid CreateWorkoutEntryRequest> entries
 ) {
 }

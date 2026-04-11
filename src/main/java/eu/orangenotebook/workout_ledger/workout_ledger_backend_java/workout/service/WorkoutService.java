@@ -44,7 +44,7 @@ public class WorkoutService {
     private void ensureExercisesBelongToUser(String userId, List<CreateWorkoutEntryRequest> entries) {
         Set<String> exerciseIds = entries.stream()
                 .map(CreateWorkoutEntryRequest::exerciseId)
-                .map(this::trimToNull)
+                .map(TrimUtil::trimToNull)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
 
         if (exerciseIds.contains(null)) {
@@ -57,11 +57,4 @@ public class WorkoutService {
         }
     }
 
-    private String trimToNull(String value) {
-        if (value == null) {
-            return null;
-        }
-        String trimmedValue = value.trim();
-        return trimmedValue.isEmpty() ? null : trimmedValue;
-    }
 }

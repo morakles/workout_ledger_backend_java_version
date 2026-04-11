@@ -83,7 +83,7 @@ class WorkoutControllerTest {
         );
         when(workoutService.createWorkout(USER_EMAIL, request)).thenReturn(response);
 
-        mockMvc.perform(post("/api/v1/workouts")
+        mockMvc.perform(post("/api/workouts")
                         .principal(authentication())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -109,7 +109,7 @@ class WorkoutControllerTest {
                 List.of()
         );
 
-        mockMvc.perform(post("/api/v1/workouts")
+        mockMvc.perform(post("/api/workouts")
                         .principal(authentication())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))

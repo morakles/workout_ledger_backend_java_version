@@ -11,6 +11,8 @@ import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.workout.mode
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.workout.model.WorkoutEntry;
 import org.springframework.stereotype.Component;
 
+import static eu.orangenotebook.workout_ledger.workout_ledger_backend_java.workout.service.TrimUtil.trimToNull;
+
 @Component
 public class WorkoutMapper {
 
@@ -80,13 +82,5 @@ public class WorkoutMapper {
                 setEntry.getDistanceMeters(),
                 setEntry.getType()
         );
-    }
-
-    private String trimToNull(String value) {
-        if (value == null) {
-            return null;
-        }
-        String trimmedValue = value.trim();
-        return trimmedValue.isEmpty() ? null : trimmedValue;
     }
 }
