@@ -9,6 +9,7 @@ import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exercise.ser
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.model.UserDocument;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.model.UserProvider;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.repository.UserRepository;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.workout.repository.WorkoutRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -72,6 +73,9 @@ class ExerciseControllerIntegrationTest {
 
     @MockitoBean
     ExerciseReferenceChecker exerciseReferenceChecker;
+
+    @MockitoBean
+    WorkoutRepository workoutRepository;
 
     Map<String, UserDocument> usersByEmail;
     Map<String, ExerciseDocument> exercisesById;
