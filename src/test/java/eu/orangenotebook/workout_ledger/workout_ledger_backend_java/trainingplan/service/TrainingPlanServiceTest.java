@@ -2,9 +2,11 @@ package eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingpla
 
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exception.AuthenticationException;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exception.ExerciseNotFoundException;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exception.InvalidTrainingPlanStatusTransitionException;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exercise.model.ExerciseDocument;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exercise.repository.ExerciseRepository;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exception.TrainingPlanNotFoundException;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exception.TrainingPlanStatusNotAllowedException;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.controller.CreateTrainingPlanRequest;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.controller.PlannedSetRequest;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.controller.TrainingPlanEntryRequest;
@@ -13,6 +15,7 @@ import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.PlannedSetType;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanDocument;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanEntry;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanStatus;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanType;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.repository.TrainingPlanRepository;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.model.UserDocument;
@@ -99,6 +102,7 @@ class TrainingPlanServiceTest {
         assertThat(savedTrainingPlan.getName()).isEqualTo("Push A");
         assertThat(savedTrainingPlan.getDescription()).isEqualTo("Upper body");
         assertThat(savedTrainingPlan.getType()).isEqualTo(TrainingPlanType.TEMPLATE);
+        assertThat(savedTrainingPlan.getStatus()).isNull();
         assertThat(savedTrainingPlan.getPlannedDate()).isNull();
         assertThat(savedTrainingPlan.isActive()).isTrue();
         assertThat(savedTrainingPlan.getEntries()).hasSize(2);
@@ -116,11 +120,11 @@ class TrainingPlanServiceTest {
     void listTrainingPlansUsesAuthenticatedUserId() {
         TrainingPlanDocument newest = trainingPlan("plan-2", "Pull A", Instant.parse("2026-04-08T12:00:00Z"), entry("exercise-2", 1, plannedSet(1)));
         TrainingPlanDocument older = trainingPlan("plan-1", "Push A", Instant.parse("2026-04-07T12:00:00Z"), entry("exercise-1", 1, plannedSet(1)));
-        when(trainingPlanRepository.findAllByUserIdAndFilters(USER_ID, null, null, null)).thenReturn(List.of(newest, older));
+        when(trainingPlanRepository.findAllByUserIdAndFilters(USER_ID, null, null, null, null)).thenReturn(List.of(newest, older));
 
         List<TrainingPlanDocument> trainingPlans = trainingPlanService.listTrainingPlans(USER_EMAIL);
 
-        verify(trainingPlanRepository).findAllByUserIdAndFilters(USER_ID, null, null, null);
+        verify(trainingPlanRepository).findAllByUserIdAndFilters(USER_ID, null, null, null, null);
         assertThat(trainingPlans).containsExactly(newest, older);
     }
 
@@ -143,6 +147,7 @@ class TrainingPlanServiceTest {
         TrainingPlanDocument createdTrainingPlan = trainingPlanService.createTrainingPlan(USER_EMAIL, request);
 
         assertThat(createdTrainingPlan.getType()).isEqualTo(TrainingPlanType.PLANNED_WORKOUT);
+        assertThat(createdTrainingPlan.getStatus()).isEqualTo(TrainingPlanStatus.PLANNED);
         assertThat(createdTrainingPlan.getPlannedDate()).isEqualTo(plannedDate);
     }
 
@@ -159,17 +164,18 @@ class TrainingPlanServiceTest {
         );
         plannedWorkout.setType(TrainingPlanType.PLANNED_WORKOUT);
         plannedWorkout.setPlannedDate(LocalDate.parse("2026-04-12"));
-        when(trainingPlanRepository.findAllByUserIdAndFilters(USER_ID, TrainingPlanType.PLANNED_WORKOUT, from, to))
+        when(trainingPlanRepository.findAllByUserIdAndFilters(USER_ID, TrainingPlanType.PLANNED_WORKOUT, null, from, to))
                 .thenReturn(List.of(plannedWorkout));
 
         List<TrainingPlanDocument> trainingPlans = trainingPlanService.listTrainingPlans(
                 USER_EMAIL,
                 from,
                 to,
-                TrainingPlanType.PLANNED_WORKOUT
+                TrainingPlanType.PLANNED_WORKOUT,
+                null
         );
 
-        verify(trainingPlanRepository).findAllByUserIdAndFilters(USER_ID, TrainingPlanType.PLANNED_WORKOUT, from, to);
+        verify(trainingPlanRepository).findAllByUserIdAndFilters(USER_ID, TrainingPlanType.PLANNED_WORKOUT, null, from, to);
         assertThat(trainingPlans).containsExactly(plannedWorkout);
     }
 
@@ -180,12 +186,13 @@ class TrainingPlanServiceTest {
                 USER_EMAIL,
                 LocalDate.parse("2026-04-20"),
                 LocalDate.parse("2026-04-10"),
-                TrainingPlanType.PLANNED_WORKOUT
+                TrainingPlanType.PLANNED_WORKOUT,
+                null
         ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Query param 'from' must be before or equal to 'to'.");
 
-        verify(trainingPlanRepository, never()).findAllByUserIdAndFilters(anyString(), any(), any(), any());
+        verify(trainingPlanRepository, never()).findAllByUserIdAndFilters(anyString(), any(), any(), any(), any());
     }
 
     @Test
@@ -244,6 +251,7 @@ class TrainingPlanServiceTest {
         assertThat(updatedTrainingPlan.getName()).isEqualTo("Push B");
         assertThat(updatedTrainingPlan.getDescription()).isEqualTo("After");
         assertThat(updatedTrainingPlan.getType()).isEqualTo(TrainingPlanType.TEMPLATE);
+        assertThat(updatedTrainingPlan.getStatus()).isNull();
         assertThat(updatedTrainingPlan.getPlannedDate()).isNull();
         assertThat(updatedTrainingPlan.isActive()).isFalse();
         assertThat(updatedTrainingPlan.getEntries()).hasSize(1);
@@ -287,6 +295,7 @@ class TrainingPlanServiceTest {
         TrainingPlanDocument updatedTrainingPlan = trainingPlanService.updateTrainingPlan(USER_EMAIL, "plan-1", request);
 
         assertThat(updatedTrainingPlan.getType()).isEqualTo(TrainingPlanType.PLANNED_WORKOUT);
+        assertThat(updatedTrainingPlan.getStatus()).isEqualTo(TrainingPlanStatus.PLANNED);
         assertThat(updatedTrainingPlan.getPlannedDate()).isEqualTo(plannedDate);
     }
 
@@ -311,6 +320,7 @@ class TrainingPlanServiceTest {
         TrainingPlanDocument updatedTrainingPlan = trainingPlanService.updateTrainingPlan(USER_EMAIL, "plan-1", request);
 
         assertThat(updatedTrainingPlan.getType()).isEqualTo(TrainingPlanType.PLANNED_WORKOUT);
+        assertThat(updatedTrainingPlan.getStatus()).isEqualTo(TrainingPlanStatus.PLANNED);
         assertThat(updatedTrainingPlan.getPlannedDate()).isEqualTo(plannedDate);
     }
 
@@ -319,6 +329,7 @@ class TrainingPlanServiceTest {
     void updateTrainingPlanSwitchesPlannedWorkoutToTemplate() {
         TrainingPlanDocument trainingPlan = trainingPlan("plan-1", "Push A", Instant.parse("2026-04-07T12:00:00Z"), entry("exercise-1", 1, plannedSet(1)));
         trainingPlan.setType(TrainingPlanType.PLANNED_WORKOUT);
+        trainingPlan.setStatus(TrainingPlanStatus.DONE);
         trainingPlan.setPlannedDate(LocalDate.parse("2026-04-12"));
         UpdateTrainingPlanRequest request = updateRequest(
                 " Push B ",
@@ -336,7 +347,89 @@ class TrainingPlanServiceTest {
         TrainingPlanDocument updatedTrainingPlan = trainingPlanService.updateTrainingPlan(USER_EMAIL, "plan-1", request);
 
         assertThat(updatedTrainingPlan.getType()).isEqualTo(TrainingPlanType.TEMPLATE);
+        assertThat(updatedTrainingPlan.getStatus()).isNull();
         assertThat(updatedTrainingPlan.getPlannedDate()).isNull();
+    }
+
+    @Test
+    @DisplayName("should update training plan status from planned to done")
+    void updateTrainingPlanStatusSuccess() {
+        TrainingPlanDocument trainingPlan = trainingPlan("plan-1", "Push A", Instant.parse("2026-04-07T12:00:00Z"), entry("exercise-1", 1, plannedSet(1)));
+        trainingPlan.setType(TrainingPlanType.PLANNED_WORKOUT);
+        trainingPlan.setStatus(TrainingPlanStatus.PLANNED);
+        trainingPlan.setPlannedDate(LocalDate.parse("2026-04-12"));
+        when(trainingPlanRepository.findByIdAndUserId("plan-1", USER_ID)).thenReturn(Optional.of(trainingPlan));
+        when(trainingPlanRepository.save(any(TrainingPlanDocument.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        TrainingPlanDocument updatedTrainingPlan = trainingPlanService.updateTrainingPlanStatus(
+                USER_EMAIL,
+                "plan-1",
+                TrainingPlanStatus.DONE
+        );
+
+        assertThat(updatedTrainingPlan.getStatus()).isEqualTo(TrainingPlanStatus.DONE);
+        verify(trainingPlanRepository).save(trainingPlan);
+    }
+
+    @Test
+    @DisplayName("should reject invalid training plan status transition")
+    void updateTrainingPlanStatusRejectsInvalidTransition() {
+        TrainingPlanDocument trainingPlan = trainingPlan("plan-1", "Push A", Instant.parse("2026-04-07T12:00:00Z"), entry("exercise-1", 1, plannedSet(1)));
+        trainingPlan.setType(TrainingPlanType.PLANNED_WORKOUT);
+        trainingPlan.setStatus(TrainingPlanStatus.DONE);
+        trainingPlan.setPlannedDate(LocalDate.parse("2026-04-12"));
+        when(trainingPlanRepository.findByIdAndUserId("plan-1", USER_ID)).thenReturn(Optional.of(trainingPlan));
+
+        assertThatThrownBy(() -> trainingPlanService.updateTrainingPlanStatus(USER_EMAIL, "plan-1", TrainingPlanStatus.SKIPPED))
+                .isInstanceOf(InvalidTrainingPlanStatusTransitionException.class)
+                .hasMessage("Training plan status cannot transition from DONE to SKIPPED.");
+
+        verify(trainingPlanRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("should return not found when training plan status update targets another user")
+    void updateTrainingPlanStatusRejectsForeignPlan() {
+        when(trainingPlanRepository.findByIdAndUserId("plan-1", USER_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> trainingPlanService.updateTrainingPlanStatus(USER_EMAIL, "plan-1", TrainingPlanStatus.DONE))
+                .isInstanceOf(TrainingPlanNotFoundException.class)
+                .hasMessage("Training plan not found.");
+
+        verify(trainingPlanRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("should reject training plan status update for template")
+    void updateTrainingPlanStatusRejectsTemplate() {
+        TrainingPlanDocument trainingPlan = trainingPlan("plan-1", "Push A", Instant.parse("2026-04-07T12:00:00Z"), entry("exercise-1", 1, plannedSet(1)));
+        when(trainingPlanRepository.findByIdAndUserId("plan-1", USER_ID)).thenReturn(Optional.of(trainingPlan));
+
+        assertThatThrownBy(() -> trainingPlanService.updateTrainingPlanStatus(USER_EMAIL, "plan-1", TrainingPlanStatus.DONE))
+                .isInstanceOf(TrainingPlanStatusNotAllowedException.class)
+                .hasMessage("Training plan status can be updated only for PLANNED_WORKOUT.");
+
+        verify(trainingPlanRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("should update training plan status from planned to skipped")
+    void updateTrainingPlanStatusToSkippedSuccess() {
+        TrainingPlanDocument trainingPlan = trainingPlan("plan-1", "Push A", Instant.parse("2026-04-07T12:00:00Z"), entry("exercise-1", 1, plannedSet(1)));
+        trainingPlan.setType(TrainingPlanType.PLANNED_WORKOUT);
+        trainingPlan.setStatus(TrainingPlanStatus.PLANNED);
+        trainingPlan.setPlannedDate(LocalDate.parse("2026-04-12"));
+        when(trainingPlanRepository.findByIdAndUserId("plan-1", USER_ID)).thenReturn(Optional.of(trainingPlan));
+        when(trainingPlanRepository.save(any(TrainingPlanDocument.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        TrainingPlanDocument updatedTrainingPlan = trainingPlanService.updateTrainingPlanStatus(
+                USER_EMAIL,
+                "plan-1",
+                TrainingPlanStatus.SKIPPED
+        );
+
+        assertThat(updatedTrainingPlan.getStatus()).isEqualTo(TrainingPlanStatus.SKIPPED);
+        verify(trainingPlanRepository).save(trainingPlan);
     }
 
     @Test
@@ -595,6 +688,7 @@ class TrainingPlanServiceTest {
                 .name(name)
                 .description("Description")
                 .type(TrainingPlanType.TEMPLATE)
+                .status(null)
                 .entries(List.of(entries))
                 .active(true)
                 .createdAt(timestamp)

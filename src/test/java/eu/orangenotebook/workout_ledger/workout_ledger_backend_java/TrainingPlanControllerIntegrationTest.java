@@ -8,10 +8,12 @@ import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.controller.PlannedSetRequest;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.controller.TrainingPlanEntryRequest;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.controller.UpdateTrainingPlanRequest;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.controller.UpdateTrainingPlanStatusRequest;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.PlannedSet;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.PlannedSetType;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanDocument;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanEntry;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanStatus;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanType;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.repository.TrainingPlanRepository;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.model.UserDocument;
@@ -46,6 +48,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -130,6 +133,7 @@ class TrainingPlanControllerIntegrationTest {
                             trainingPlan.getName(),
                             trainingPlan.getDescription(),
                             trainingPlan.getType(),
+                            trainingPlan.getStatus(),
                             trainingPlan.getPlannedDate(),
                             trainingPlan.getEntries(),
                             trainingPlan.isActive(),
@@ -143,13 +147,15 @@ class TrainingPlanControllerIntegrationTest {
         Mockito.lenient().when(trainingPlanRepository.findAllByUserIdAndFilters(
                         anyString(),
                         Mockito.nullable(TrainingPlanType.class),
+                        Mockito.nullable(TrainingPlanStatus.class),
                         Mockito.nullable(LocalDate.class),
                         Mockito.nullable(LocalDate.class)
                 ))
                 .thenAnswer(invocation -> trainingPlansById.values().stream()
                         .filter(trainingPlan -> trainingPlan.getUserId().equals(invocation.getArgument(0)))
                         .filter(trainingPlan -> matchesType(trainingPlan, invocation.getArgument(1)))
-                        .filter(trainingPlan -> matchesDateRange(trainingPlan, invocation.getArgument(2), invocation.getArgument(3)))
+                        .filter(trainingPlan -> matchesStatus(trainingPlan, invocation.getArgument(2)))
+                        .filter(trainingPlan -> matchesDateRange(trainingPlan, invocation.getArgument(3), invocation.getArgument(4)))
                         .sorted(Comparator.comparing(
                                         TrainingPlanControllerIntegrationTest::plannedDateSortValue)
                                 .thenComparing(TrainingPlanDocument::getId))
@@ -158,6 +164,9 @@ class TrainingPlanControllerIntegrationTest {
         Mockito.lenient().when(trainingPlanRepository.findByIdAndUserId(anyString(), anyString()))
                 .thenAnswer(invocation -> Optional.ofNullable(trainingPlansById.get(invocation.getArgument(0)))
                         .filter(trainingPlan -> trainingPlan.getUserId().equals(invocation.getArgument(1))));
+
+        Mockito.lenient().when(trainingPlanRepository.findById(anyString()))
+                .thenAnswer(invocation -> Optional.ofNullable(trainingPlansById.get(invocation.getArgument(0))));
 
         Mockito.lenient().doAnswer(invocation -> {
             TrainingPlanDocument trainingPlan = invocation.getArgument(0);
@@ -179,6 +188,7 @@ class TrainingPlanControllerIntegrationTest {
                 .andExpect(jsonPath("$.name").value("Push A"))
                 .andExpect(jsonPath("$.description").value("Upper body"))
                 .andExpect(jsonPath("$.type").value("TEMPLATE"))
+                .andExpect(jsonPath("$.status").doesNotExist())
                 .andExpect(jsonPath("$.active").value(true))
                 .andExpect(jsonPath("$.entries[0].exerciseNameSnapshot").value("Bench Press"));
 
@@ -192,6 +202,7 @@ class TrainingPlanControllerIntegrationTest {
         assertThat(saved.getName()).isEqualTo("Push A");
         assertThat(saved.getDescription()).isEqualTo("Upper body");
         assertThat(saved.getType()).isEqualTo(TrainingPlanType.TEMPLATE);
+        assertThat(saved.getStatus()).isNull();
         assertThat(saved.getPlannedDate()).isNull();
         assertThat(saved.getEntries()).hasSize(1);
         assertThat(saved.getEntries().getFirst().getExerciseId()).isEqualTo("exercise-1");
@@ -210,6 +221,7 @@ class TrainingPlanControllerIntegrationTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.name").value("Pull A"))
                 .andExpect(jsonPath("$.type").value("PLANNED_WORKOUT"))
+                .andExpect(jsonPath("$.status").value("PLANNED"))
                 .andExpect(jsonPath("$.plannedDate").value("2026-04-15"));
 
         TrainingPlanDocument saved = trainingPlansById.values().stream()
@@ -219,6 +231,7 @@ class TrainingPlanControllerIntegrationTest {
 
         assertThat(saved).isNotNull();
         assertThat(saved.getType()).isEqualTo(TrainingPlanType.PLANNED_WORKOUT);
+        assertThat(saved.getStatus()).isEqualTo(TrainingPlanStatus.PLANNED);
         assertThat(saved.getPlannedDate()).isEqualTo(LocalDate.parse("2026-04-15"));
     }
 
@@ -271,7 +284,8 @@ class TrainingPlanControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(3))
                 .andExpect(jsonPath("$[*].id").value(org.hamcrest.Matchers.contains("plan-1", "plan-2", "plan-3")))
-                .andExpect(jsonPath("$[*].type").value(org.hamcrest.Matchers.everyItem(org.hamcrest.Matchers.is("TEMPLATE"))));
+                .andExpect(jsonPath("$[*].type").value(org.hamcrest.Matchers.everyItem(org.hamcrest.Matchers.is("TEMPLATE"))))
+                .andExpect(jsonPath("$[0].status").doesNotExist());
     }
 
     @Test
@@ -349,6 +363,24 @@ class TrainingPlanControllerIntegrationTest {
     }
 
     @Test
+    @DisplayName("should filter training plans by status for planned workouts only")
+    void getTrainingPlansFiltersByStatus() throws Exception {
+        insertTrainingPlan("plan-1", USER_ID, "Workout A", TrainingPlanType.PLANNED_WORKOUT, LocalDate.parse("2026-04-10"),
+                TrainingPlanStatus.PLANNED, Instant.parse("2026-04-08T12:00:00Z"));
+        insertTrainingPlan("plan-2", USER_ID, "Template A", Instant.parse("2026-04-09T12:00:00Z"));
+        insertTrainingPlan("plan-3", USER_ID, "Workout Done", TrainingPlanType.PLANNED_WORKOUT, LocalDate.parse("2026-04-12"),
+                TrainingPlanStatus.DONE, Instant.parse("2026-04-10T12:00:00Z"));
+
+        mockMvc.perform(get("/v1/training-plans")
+                        .header("Authorization", bearerToken(USER_EMAIL))
+                        .param("status", "PLANNED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value("plan-1"))
+                .andExpect(jsonPath("$[0].status").value("PLANNED"));
+    }
+
+    @Test
     @DisplayName("should sort training plans by plannedDate ascending")
     void getTrainingPlansSortsByPlannedDate() throws Exception {
         insertTrainingPlan("plan-1", USER_ID, "Workout C", TrainingPlanType.PLANNED_WORKOUT, LocalDate.parse("2026-04-15"),
@@ -404,6 +436,7 @@ class TrainingPlanControllerIntegrationTest {
                 .andExpect(jsonPath("$.id").value("plan-1"))
                 .andExpect(jsonPath("$.name").value("Push A"))
                 .andExpect(jsonPath("$.type").value("TEMPLATE"))
+                .andExpect(jsonPath("$.status").doesNotExist())
                 .andExpect(jsonPath("$.entries[0].exerciseNameSnapshot").value("Bench Press"));
     }
 
@@ -433,6 +466,7 @@ class TrainingPlanControllerIntegrationTest {
                 .andExpect(jsonPath("$.id").value("plan-1"))
                 .andExpect(jsonPath("$.name").value("Push B"))
                 .andExpect(jsonPath("$.type").value("TEMPLATE"))
+                .andExpect(jsonPath("$.status").doesNotExist())
                 .andExpect(jsonPath("$.active").value(false))
                 .andExpect(jsonPath("$.entries[0].exerciseNameSnapshot").value("Incline Bench Press"));
 
@@ -443,6 +477,7 @@ class TrainingPlanControllerIntegrationTest {
         assertThat(updated.getUpdatedAt()).isEqualTo(Instant.parse("2026-04-10T12:00:00Z"));
         assertThat(updated.getName()).isEqualTo("Push B");
         assertThat(updated.getType()).isEqualTo(TrainingPlanType.TEMPLATE);
+        assertThat(updated.getStatus()).isNull();
         assertThat(updated.getPlannedDate()).isNull();
         assertThat(updated.isActive()).isFalse();
         assertThat(updated.getEntries()).hasSize(1);
@@ -465,11 +500,13 @@ class TrainingPlanControllerIntegrationTest {
                 .andExpect(jsonPath("$.id").value("plan-1"))
                 .andExpect(jsonPath("$.name").value("Push B"))
                 .andExpect(jsonPath("$.type").value("PLANNED_WORKOUT"))
+                .andExpect(jsonPath("$.status").value("PLANNED"))
                 .andExpect(jsonPath("$.plannedDate").value("2026-04-20"))
                 .andExpect(jsonPath("$.active").value(false));
 
         TrainingPlanDocument updated = trainingPlansById.get("plan-1");
         assertThat(updated.getType()).isEqualTo(TrainingPlanType.PLANNED_WORKOUT);
+        assertThat(updated.getStatus()).isEqualTo(TrainingPlanStatus.PLANNED);
         assertThat(updated.getPlannedDate()).isEqualTo(LocalDate.parse("2026-04-20"));
     }
 
@@ -485,10 +522,12 @@ class TrainingPlanControllerIntegrationTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.type").value("PLANNED_WORKOUT"))
+                .andExpect(jsonPath("$.status").value("PLANNED"))
                 .andExpect(jsonPath("$.plannedDate").value("2026-04-21"));
 
         TrainingPlanDocument updated = trainingPlansById.get("plan-1");
         assertThat(updated.getType()).isEqualTo(TrainingPlanType.PLANNED_WORKOUT);
+        assertThat(updated.getStatus()).isEqualTo(TrainingPlanStatus.PLANNED);
         assertThat(updated.getPlannedDate()).isEqualTo(LocalDate.parse("2026-04-21"));
     }
 
@@ -505,11 +544,135 @@ class TrainingPlanControllerIntegrationTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.type").value("TEMPLATE"))
+                .andExpect(jsonPath("$.status").doesNotExist())
                 .andExpect(jsonPath("$.plannedDate").doesNotExist());
 
         TrainingPlanDocument updated = trainingPlansById.get("plan-1");
         assertThat(updated.getType()).isEqualTo(TrainingPlanType.TEMPLATE);
+        assertThat(updated.getStatus()).isNull();
         assertThat(updated.getPlannedDate()).isNull();
+    }
+
+    @Test
+    @DisplayName("should update training plan status from planned to done")
+    void updateTrainingPlanStatusFromPlannedToDone() throws Exception {
+        insertTrainingPlan("plan-1", USER_ID, "Push A", TrainingPlanType.PLANNED_WORKOUT, LocalDate.parse("2026-04-12"),
+                TrainingPlanStatus.PLANNED, Instant.parse("2026-04-08T12:00:00Z"));
+        UpdateTrainingPlanStatusRequest request = new UpdateTrainingPlanStatusRequest(TrainingPlanStatus.DONE);
+
+        mockMvc.perform(patch("/v1/training-plans/plan-1/status")
+                        .header("Authorization", bearerToken(USER_EMAIL))
+                        .contentType(APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value("plan-1"))
+                .andExpect(jsonPath("$.status").value("DONE"));
+
+        assertThat(trainingPlansById.get("plan-1").getStatus()).isEqualTo(TrainingPlanStatus.DONE);
+    }
+
+    @Test
+    @DisplayName("should update training plan status from planned to skipped")
+    void updateTrainingPlanStatusFromPlannedToSkipped() throws Exception {
+        insertTrainingPlan("plan-1", USER_ID, "Push A", TrainingPlanType.PLANNED_WORKOUT, LocalDate.parse("2026-04-12"),
+                TrainingPlanStatus.PLANNED, Instant.parse("2026-04-08T12:00:00Z"));
+        UpdateTrainingPlanStatusRequest request = new UpdateTrainingPlanStatusRequest(TrainingPlanStatus.SKIPPED);
+
+        mockMvc.perform(patch("/v1/training-plans/plan-1/status")
+                        .header("Authorization", bearerToken(USER_EMAIL))
+                        .contentType(APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value("plan-1"))
+                .andExpect(jsonPath("$.status").value("SKIPPED"));
+
+        assertThat(trainingPlansById.get("plan-1").getStatus()).isEqualTo(TrainingPlanStatus.SKIPPED);
+    }
+
+    @Test
+    @DisplayName("should reject status transition from done to skipped")
+    void updateTrainingPlanStatusFromDoneToSkippedFails() throws Exception {
+        insertTrainingPlan("plan-1", USER_ID, "Push A", TrainingPlanType.PLANNED_WORKOUT, LocalDate.parse("2026-04-12"),
+                TrainingPlanStatus.DONE, Instant.parse("2026-04-08T12:00:00Z"));
+        UpdateTrainingPlanStatusRequest request = new UpdateTrainingPlanStatusRequest(TrainingPlanStatus.SKIPPED);
+
+        mockMvc.perform(patch("/v1/training-plans/plan-1/status")
+                        .header("Authorization", bearerToken(USER_EMAIL))
+                        .contentType(APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("Training plan status cannot transition from DONE to SKIPPED."));
+
+        assertThat(trainingPlansById.get("plan-1").getStatus()).isEqualTo(TrainingPlanStatus.DONE);
+    }
+
+    @Test
+    @DisplayName("should return 400 when updating status of template")
+    void updateTrainingPlanStatusForTemplateFails() throws Exception {
+        insertTrainingPlan("plan-1", USER_ID, "Push A", Instant.parse("2026-04-08T12:00:00Z"));
+        UpdateTrainingPlanStatusRequest request = new UpdateTrainingPlanStatusRequest(TrainingPlanStatus.DONE);
+
+        mockMvc.perform(patch("/v1/training-plans/plan-1/status")
+                        .header("Authorization", bearerToken(USER_EMAIL))
+                        .contentType(APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Training plan status can be updated only for PLANNED_WORKOUT."));
+
+        assertThat(trainingPlansById.get("plan-1").getStatus()).isNull();
+    }
+
+    @Test
+    @DisplayName("should return 404 when updating status of another users training plan")
+    void updateTrainingPlanStatusForDifferentUser() throws Exception {
+        insertTrainingPlan("plan-1", OTHER_USER_ID, "Push A", TrainingPlanType.PLANNED_WORKOUT, LocalDate.parse("2026-04-12"),
+                TrainingPlanStatus.PLANNED, Instant.parse("2026-04-08T12:00:00Z"));
+        UpdateTrainingPlanStatusRequest request = new UpdateTrainingPlanStatusRequest(TrainingPlanStatus.DONE);
+
+        mockMvc.perform(patch("/v1/training-plans/plan-1/status")
+                        .header("Authorization", bearerToken(USER_EMAIL))
+                        .contentType(APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("Training plan not found."));
+
+        assertThat(trainingPlansById.get("plan-1").getStatus()).isEqualTo(TrainingPlanStatus.PLANNED);
+    }
+
+    @Test
+    @DisplayName("should reject null training plan status update request")
+    void updateTrainingPlanStatusRejectsNullStatus() throws Exception {
+        insertTrainingPlan("plan-1", USER_ID, "Push A", TrainingPlanType.PLANNED_WORKOUT, LocalDate.parse("2026-04-12"),
+                TrainingPlanStatus.PLANNED, Instant.parse("2026-04-08T12:00:00Z"));
+
+        mockMvc.perform(patch("/v1/training-plans/plan-1/status")
+                        .header("Authorization", bearerToken(USER_EMAIL))
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "status": null
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("must not be null"));
+    }
+
+    @Test
+    @DisplayName("should reject invalid training plan status enum value")
+    void updateTrainingPlanStatusRejectsInvalidEnumValue() throws Exception {
+        insertTrainingPlan("plan-1", USER_ID, "Push A", TrainingPlanType.PLANNED_WORKOUT, LocalDate.parse("2026-04-12"),
+                TrainingPlanStatus.PLANNED, Instant.parse("2026-04-08T12:00:00Z"));
+
+        mockMvc.perform(patch("/v1/training-plans/plan-1/status")
+                        .header("Authorization", bearerToken(USER_EMAIL))
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "status": "INVALID"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Malformed request body."));
     }
 
     @Test
@@ -665,7 +828,7 @@ class TrainingPlanControllerIntegrationTest {
     }
 
     private void insertTrainingPlan(String id, String userId, String name, Instant timestamp) {
-        insertTrainingPlan(id, userId, name, TrainingPlanType.TEMPLATE, null, timestamp);
+        insertTrainingPlan(id, userId, name, TrainingPlanType.TEMPLATE, null, null, timestamp);
     }
 
     private void insertTrainingPlan(String id,
@@ -674,12 +837,31 @@ class TrainingPlanControllerIntegrationTest {
                                     TrainingPlanType type,
                                     LocalDate plannedDate,
                                     Instant timestamp) {
+        insertTrainingPlan(
+                id,
+                userId,
+                name,
+                type,
+                plannedDate,
+                type == TrainingPlanType.PLANNED_WORKOUT ? TrainingPlanStatus.PLANNED : null,
+                timestamp
+        );
+    }
+
+    private void insertTrainingPlan(String id,
+                                    String userId,
+                                    String name,
+                                    TrainingPlanType type,
+                                    LocalDate plannedDate,
+                                    TrainingPlanStatus status,
+                                    Instant timestamp) {
         trainingPlansById.put(id, copyTrainingPlan(
                 id,
                 userId,
                 name,
                 "Upper body",
                 type,
+                status,
                 plannedDate,
                 List.of(TrainingPlanEntry.builder()
                         .exerciseId("exercise-1")
@@ -705,12 +887,31 @@ class TrainingPlanControllerIntegrationTest {
                                                TrainingPlanType type,
                                                LocalDate plannedDate,
                                                Instant timestamp) {
+        insertTrainingPlanWithRawStatus(
+                id,
+                userId,
+                name,
+                type,
+                plannedDate,
+                type == TrainingPlanType.PLANNED_WORKOUT ? TrainingPlanStatus.PLANNED : null,
+                timestamp
+        );
+    }
+
+    private void insertTrainingPlanWithRawStatus(String id,
+                                                 String userId,
+                                                 String name,
+                                                 TrainingPlanType type,
+                                                 LocalDate plannedDate,
+                                                 TrainingPlanStatus status,
+                                                 Instant timestamp) {
         trainingPlansById.put(id, copyTrainingPlan(
                 id,
                 userId,
                 name,
                 "Upper body",
                 type,
+                status,
                 plannedDate,
                 List.of(TrainingPlanEntry.builder()
                         .exerciseId("exercise-1")
@@ -735,6 +936,7 @@ class TrainingPlanControllerIntegrationTest {
                                                   String name,
                                                   String description,
                                                   TrainingPlanType type,
+                                                  TrainingPlanStatus status,
                                                   LocalDate plannedDate,
                                                   List<TrainingPlanEntry> entries,
                                                   boolean active,
@@ -746,6 +948,7 @@ class TrainingPlanControllerIntegrationTest {
                 .name(name)
                 .description(description)
                 .type(type)
+                .status(status)
                 .plannedDate(plannedDate)
                 .entries(entries.stream()
                         .map(entry -> TrainingPlanEntry.builder()
@@ -779,6 +982,13 @@ class TrainingPlanControllerIntegrationTest {
 
         TrainingPlanType effectiveType = trainingPlan.getType() != null ? trainingPlan.getType() : TrainingPlanType.TEMPLATE;
         return effectiveType == type;
+    }
+
+    private boolean matchesStatus(TrainingPlanDocument trainingPlan, TrainingPlanStatus status) {
+        if (status == null) {
+            return true;
+        }
+        return trainingPlan.getStatus() == status;
     }
 
     private boolean matchesDateRange(TrainingPlanDocument trainingPlan, LocalDate from, LocalDate to) {

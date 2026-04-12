@@ -2,7 +2,9 @@ package eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingpla
 
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exception.AuthenticationException;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exception.ExerciseNotFoundException;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exception.InvalidTrainingPlanStatusTransitionException;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exception.TrainingPlanNotFoundException;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exception.TrainingPlanStatusNotAllowedException;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exercise.model.ExerciseDocument;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exercise.repository.ExerciseRepository;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.controller.CreateTrainingPlanRequest;
@@ -11,6 +13,7 @@ import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.PlannedSet;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanDocument;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanEntry;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanStatus;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanType;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.repository.TrainingPlanRepository;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.model.UserDocument;
@@ -47,16 +50,17 @@ public class TrainingPlanService {
     }
 
     public List<TrainingPlanDocument> listTrainingPlans(String authenticatedEmail) {
-        return listTrainingPlans(authenticatedEmail, null, null, null);
+        return listTrainingPlans(authenticatedEmail, null, null, null, null);
     }
 
     public List<TrainingPlanDocument> listTrainingPlans(String authenticatedEmail,
                                                         LocalDate from,
                                                         LocalDate to,
-                                                        TrainingPlanType type) {
+                                                        TrainingPlanType type,
+                                                        TrainingPlanStatus status) {
         UserDocument user = getAuthenticatedUser(authenticatedEmail);
         validateDateRange(from, to);
-        return trainingPlanRepository.findAllByUserIdAndFilters(user.getId(), type, from, to);
+        return trainingPlanRepository.findAllByUserIdAndFilters(user.getId(), type, status, from, to);
     }
 
     public TrainingPlanDocument getTrainingPlan(String authenticatedEmail, String trainingPlanId) {
@@ -69,9 +73,26 @@ public class TrainingPlanService {
                                                    UpdateTrainingPlanRequest request) {
         UserDocument user = getAuthenticatedUser(authenticatedEmail);
         TrainingPlanDocument trainingPlanDocument = getUserTrainingPlan(trainingPlanId, user.getId());
+        TrainingPlanType originalType = Optional.ofNullable(trainingPlanDocument.getType())
+                .orElse(TrainingPlanType.TEMPLATE);
         List<TrainingPlanEntry> entries = resolveEntries(user.getId(), request.entries());
         trainingPlanMapper.updateDocument(trainingPlanDocument, request, entries);
+        normalizeStatusAfterTypeChange(trainingPlanDocument, originalType);
         return updateTrainingPlan(trainingPlanDocument);
+    }
+
+    public TrainingPlanDocument updateTrainingPlanStatus(String authenticatedEmail,
+                                                         String trainingPlanId,
+                                                         TrainingPlanStatus status) {
+        UserDocument user = getAuthenticatedUser(authenticatedEmail);
+        TrainingPlanDocument trainingPlanDocument = getUserTrainingPlan(trainingPlanId, user.getId());
+        validateStatusUpdateAllowed(trainingPlanDocument);
+        applyStatusTransition(trainingPlanDocument, status);
+        return updateTrainingPlan(trainingPlanDocument);
+    }
+
+    public TrainingPlanDocument markTrainingPlanAsDone(String authenticatedEmail, String trainingPlanId) {
+        return updateTrainingPlanStatus(authenticatedEmail, trainingPlanId, TrainingPlanStatus.DONE);
     }
 
     private List<TrainingPlanEntry> resolveEntries(String userId, List<TrainingPlanEntryRequest> requests) {
@@ -132,7 +153,7 @@ public class TrainingPlanService {
     }
 
     private void validateTrainingPlan(TrainingPlanDocument trainingPlanDocument) {
-        validateAndNormalizeTypeFields(trainingPlanDocument);
+        validateAndNormalizeTypeAndStatusFields(trainingPlanDocument);
         List<TrainingPlanEntry> entries = trainingPlanDocument.getEntries();
         validateUniqueEntryOrder(entries);
         entries.forEach(this::validateUniqueSetNumbers);
@@ -144,10 +165,11 @@ public class TrainingPlanService {
         }
     }
 
-    private void validateAndNormalizeTypeFields(TrainingPlanDocument trainingPlanDocument) {
+    private void validateAndNormalizeTypeAndStatusFields(TrainingPlanDocument trainingPlanDocument) {
         TrainingPlanType type = Optional.ofNullable(trainingPlanDocument.getType())
                 .orElse(TrainingPlanType.TEMPLATE);
         LocalDate plannedDate = trainingPlanDocument.getPlannedDate();
+        TrainingPlanStatus status = trainingPlanDocument.getStatus();
 
         if (type == TrainingPlanType.TEMPLATE && plannedDate != null) {
             throw new IllegalArgumentException("Training plan of type TEMPLATE must not define plannedDate.");
@@ -159,6 +181,42 @@ public class TrainingPlanService {
         trainingPlanDocument.setType(type);
         if (type == TrainingPlanType.TEMPLATE) {
             trainingPlanDocument.setPlannedDate(null);
+            trainingPlanDocument.setStatus(null);
+            return;
+        }
+        trainingPlanDocument.setStatus(status != null ? status : TrainingPlanStatus.PLANNED);
+    }
+
+    private void applyStatusTransition(TrainingPlanDocument trainingPlanDocument, TrainingPlanStatus targetStatus) {
+        TrainingPlanStatus currentStatus = trainingPlanDocument.getStatus();
+        if (currentStatus == TrainingPlanStatus.PLANNED
+                && (targetStatus == TrainingPlanStatus.DONE || targetStatus == TrainingPlanStatus.SKIPPED)) {
+            trainingPlanDocument.setStatus(targetStatus);
+            return;
+        }
+
+        throw new InvalidTrainingPlanStatusTransitionException(
+                "Training plan status cannot transition from " + currentStatus + " to " + targetStatus + "."
+        );
+    }
+
+    private void validateStatusUpdateAllowed(TrainingPlanDocument trainingPlanDocument) {
+        if (trainingPlanDocument.getType() != TrainingPlanType.PLANNED_WORKOUT) {
+            throw new TrainingPlanStatusNotAllowedException(
+                    "Training plan status can be updated only for PLANNED_WORKOUT."
+            );
+        }
+    }
+
+    private void normalizeStatusAfterTypeChange(TrainingPlanDocument trainingPlanDocument, TrainingPlanType originalType) {
+        TrainingPlanType updatedType = Optional.ofNullable(trainingPlanDocument.getType())
+                .orElse(TrainingPlanType.TEMPLATE);
+
+        if (originalType == TrainingPlanType.TEMPLATE && updatedType == TrainingPlanType.PLANNED_WORKOUT) {
+            trainingPlanDocument.setStatus(TrainingPlanStatus.PLANNED);
+        }
+        if (originalType == TrainingPlanType.PLANNED_WORKOUT && updatedType == TrainingPlanType.TEMPLATE) {
+            trainingPlanDocument.setStatus(null);
         }
     }
 

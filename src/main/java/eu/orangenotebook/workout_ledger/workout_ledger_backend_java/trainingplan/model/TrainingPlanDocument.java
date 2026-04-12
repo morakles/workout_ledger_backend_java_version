@@ -42,6 +42,10 @@ import java.util.List;
         @CompoundIndex(
                 name = "idx_training_plans_user_type_planned_date",
                 def = "{'userId': 1, 'type': 1, 'plannedDate': 1}"
+        ),
+        @CompoundIndex(
+                name = "idx_training_plans_user_status_planned_date_desc",
+                def = "{'userId': 1, 'status': 1, 'plannedDate': -1}"
         )
 })
 public class TrainingPlanDocument {
@@ -62,6 +66,8 @@ public class TrainingPlanDocument {
 
     @Builder.Default
     private TrainingPlanType type = TrainingPlanType.TEMPLATE;
+
+    private TrainingPlanStatus status;
 
     private LocalDate plannedDate;
 

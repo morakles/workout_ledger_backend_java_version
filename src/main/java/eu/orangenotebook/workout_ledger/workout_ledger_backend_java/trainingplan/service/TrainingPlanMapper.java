@@ -12,6 +12,7 @@ import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.PlannedSet;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanDocument;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanEntry;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanStatus;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanType;
 import org.springframework.stereotype.Component;
 
@@ -54,6 +55,7 @@ public class TrainingPlanMapper {
                 trainingPlanDocument.getName(),
                 trainingPlanDocument.getDescription(),
                 resolveType(trainingPlanDocument),
+                resolveStatus(trainingPlanDocument),
                 trainingPlanDocument.getPlannedDate(),
                 trainingPlanDocument.getEntries().stream()
                         .map(this::toEntryResponse)
@@ -69,6 +71,7 @@ public class TrainingPlanMapper {
                 trainingPlanDocument.getId(),
                 trainingPlanDocument.getName(),
                 resolveType(trainingPlanDocument),
+                resolveStatus(trainingPlanDocument),
                 trainingPlanDocument.getPlannedDate()
         );
     }
@@ -126,5 +129,9 @@ public class TrainingPlanMapper {
     private TrainingPlanType resolveType(TrainingPlanDocument trainingPlanDocument) {
         return Optional.ofNullable(trainingPlanDocument.getType())
                 .orElse(TrainingPlanType.TEMPLATE);
+    }
+
+    private TrainingPlanStatus resolveStatus(TrainingPlanDocument trainingPlanDocument) {
+        return trainingPlanDocument.getStatus();
     }
 }

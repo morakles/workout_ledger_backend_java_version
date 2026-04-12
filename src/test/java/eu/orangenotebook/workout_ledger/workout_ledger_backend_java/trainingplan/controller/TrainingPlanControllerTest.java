@@ -7,6 +7,7 @@ import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.PlannedSetType;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanDocument;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanEntry;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanStatus;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanType;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.service.TrainingPlanMapper;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.service.TrainingPlanService;
@@ -32,6 +33,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -76,6 +78,7 @@ class TrainingPlanControllerTest {
                 .andExpect(jsonPath("$.id").value("plan-1"))
                 .andExpect(jsonPath("$.name").value("Push A"))
                 .andExpect(jsonPath("$.type").value("TEMPLATE"))
+                .andExpect(jsonPath("$.status").doesNotExist())
                 .andExpect(jsonPath("$.active").value(true))
                 .andExpect(jsonPath("$.entries[0].exerciseId").value("exercise-1"));
 
@@ -85,7 +88,7 @@ class TrainingPlanControllerTest {
     @Test
     @DisplayName("list endpoint should return authenticated users training plans")
     void getTrainingPlansSuccess() throws Exception {
-        when(trainingPlanService.listTrainingPlans(USER_EMAIL, null, null, null)).thenReturn(List.of(
+        when(trainingPlanService.listTrainingPlans(USER_EMAIL, null, null, null, null)).thenReturn(List.of(
                 trainingPlan("plan-1", "Push A", TrainingPlanType.TEMPLATE, null, true),
                 trainingPlan("plan-2", "Pull A", TrainingPlanType.PLANNED_WORKOUT, LocalDate.parse("2026-04-12"), false)
         ));
@@ -96,11 +99,13 @@ class TrainingPlanControllerTest {
                 .andExpect(jsonPath("$.length()").value(2))
                 .andExpect(jsonPath("$[0].id").value("plan-1"))
                 .andExpect(jsonPath("$[0].type").value("TEMPLATE"))
+                .andExpect(jsonPath("$[0].status").doesNotExist())
                 .andExpect(jsonPath("$[1].id").value("plan-2"))
                 .andExpect(jsonPath("$[1].type").value("PLANNED_WORKOUT"))
+                .andExpect(jsonPath("$[1].status").value("PLANNED"))
                 .andExpect(jsonPath("$[1].plannedDate").value("2026-04-12"));
 
-        verify(trainingPlanService).listTrainingPlans(USER_EMAIL, null, null, null);
+        verify(trainingPlanService).listTrainingPlans(USER_EMAIL, null, null, null, null);
     }
 
     @Test
@@ -108,7 +113,7 @@ class TrainingPlanControllerTest {
     void getTrainingPlansWithFiltersSuccess() throws Exception {
         LocalDate from = LocalDate.parse("2026-04-10");
         LocalDate to = LocalDate.parse("2026-04-20");
-        when(trainingPlanService.listTrainingPlans(USER_EMAIL, from, to, TrainingPlanType.PLANNED_WORKOUT))
+        when(trainingPlanService.listTrainingPlans(USER_EMAIL, from, to, TrainingPlanType.PLANNED_WORKOUT, null))
                 .thenReturn(List.of(trainingPlan(
                         "plan-2",
                         "Pull A",
@@ -125,9 +130,10 @@ class TrainingPlanControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1))
                 .andExpect(jsonPath("$[0].id").value("plan-2"))
+                .andExpect(jsonPath("$[0].status").value("PLANNED"))
                 .andExpect(jsonPath("$[0].plannedDate").value("2026-04-12"));
 
-        verify(trainingPlanService).listTrainingPlans(USER_EMAIL, from, to, TrainingPlanType.PLANNED_WORKOUT);
+        verify(trainingPlanService).listTrainingPlans(USER_EMAIL, from, to, TrainingPlanType.PLANNED_WORKOUT, null);
     }
 
     @Test
@@ -140,7 +146,8 @@ class TrainingPlanControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value("plan-1"))
                 .andExpect(jsonPath("$.name").value("Push A"))
-                .andExpect(jsonPath("$.type").value("TEMPLATE"));
+                .andExpect(jsonPath("$.type").value("TEMPLATE"))
+                .andExpect(jsonPath("$.status").doesNotExist());
     }
 
     @Test
@@ -170,9 +177,29 @@ class TrainingPlanControllerTest {
                 .andExpect(jsonPath("$.id").value("plan-1"))
                 .andExpect(jsonPath("$.name").value("Push B"))
                 .andExpect(jsonPath("$.type").value("TEMPLATE"))
+                .andExpect(jsonPath("$.status").doesNotExist())
                 .andExpect(jsonPath("$.active").value(false));
 
         verify(trainingPlanService).updateTrainingPlan(USER_EMAIL, "plan-1", request);
+    }
+
+    @Test
+    @DisplayName("status update endpoint should return 200 with updated training plan")
+    void updateTrainingPlanStatusSuccess() throws Exception {
+        UpdateTrainingPlanStatusRequest request = new UpdateTrainingPlanStatusRequest(TrainingPlanStatus.DONE);
+        when(trainingPlanService.updateTrainingPlanStatus(USER_EMAIL, "plan-1", TrainingPlanStatus.DONE))
+                .thenReturn(trainingPlan("plan-1", "Push A", TrainingPlanType.PLANNED_WORKOUT, LocalDate.parse("2026-04-12"),
+                        TrainingPlanStatus.DONE, true));
+
+        mockMvc.perform(patch("/v1/training-plans/plan-1/status")
+                        .principal(authentication())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value("plan-1"))
+                .andExpect(jsonPath("$.status").value("DONE"));
+
+        verify(trainingPlanService).updateTrainingPlanStatus(USER_EMAIL, "plan-1", TrainingPlanStatus.DONE);
     }
 
     @Test
@@ -237,7 +264,7 @@ class TrainingPlanControllerTest {
     }
 
     private TrainingPlanDocument trainingPlan(String id, String name, boolean active) {
-        return trainingPlan(id, name, TrainingPlanType.TEMPLATE, null, active);
+        return trainingPlan(id, name, TrainingPlanType.TEMPLATE, null, null, active);
     }
 
     private TrainingPlanDocument trainingPlan(String id,
@@ -245,12 +272,29 @@ class TrainingPlanControllerTest {
                                               TrainingPlanType type,
                                               LocalDate plannedDate,
                                               boolean active) {
+        return trainingPlan(
+                id,
+                name,
+                type,
+                plannedDate,
+                type == TrainingPlanType.PLANNED_WORKOUT ? TrainingPlanStatus.PLANNED : null,
+                active
+        );
+    }
+
+    private TrainingPlanDocument trainingPlan(String id,
+                                              String name,
+                                              TrainingPlanType type,
+                                              LocalDate plannedDate,
+                                              TrainingPlanStatus status,
+                                              boolean active) {
         return TrainingPlanDocument.builder()
                 .id(id)
                 .userId("user-1")
                 .name(name)
                 .description("Upper body")
                 .type(type)
+                .status(status)
                 .plannedDate(plannedDate)
                 .entries(List.of(TrainingPlanEntry.builder()
                         .exerciseId("exercise-1")

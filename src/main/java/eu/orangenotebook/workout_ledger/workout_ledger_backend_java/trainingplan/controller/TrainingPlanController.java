@@ -2,6 +2,7 @@ package eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingpla
 
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.service.TrainingPlanMapper;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.service.TrainingPlanService;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanStatus;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanType;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -47,10 +49,11 @@ public class TrainingPlanController {
             @RequestParam(required = false) @DateTimeFormat(iso = ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = ISO.DATE) LocalDate to,
             @RequestParam(required = false) TrainingPlanType type,
+            @RequestParam(required = false) TrainingPlanStatus status,
             Authentication authentication
     ) {
         List<TrainingPlanListItemResponse> trainingPlans =
-                trainingPlanService.listTrainingPlans(authentication.getName(), from, to, type).stream()
+                trainingPlanService.listTrainingPlans(authentication.getName(), from, to, type, status).stream()
                 .map(trainingPlanMapper::toListItemResponse)
                 .toList();
         return ResponseEntity.ok(trainingPlans);
@@ -68,6 +71,18 @@ public class TrainingPlanController {
                                                                    @Valid @RequestBody UpdateTrainingPlanRequest request,
                                                                    Authentication authentication) {
         var updatedTrainingPlan = trainingPlanService.updateTrainingPlan(authentication.getName(), trainingPlanId, request);
+        return ResponseEntity.ok(trainingPlanMapper.toResponse(updatedTrainingPlan));
+    }
+
+    @PatchMapping("/{trainingPlanId}/status")
+    public ResponseEntity<TrainingPlanResponse> updateTrainingPlanStatus(@PathVariable String trainingPlanId,
+                                                                         @Valid @RequestBody UpdateTrainingPlanStatusRequest request,
+                                                                         Authentication authentication) {
+        var updatedTrainingPlan = trainingPlanService.updateTrainingPlanStatus(
+                authentication.getName(),
+                trainingPlanId,
+                request.status()
+        );
         return ResponseEntity.ok(trainingPlanMapper.toResponse(updatedTrainingPlan));
     }
 

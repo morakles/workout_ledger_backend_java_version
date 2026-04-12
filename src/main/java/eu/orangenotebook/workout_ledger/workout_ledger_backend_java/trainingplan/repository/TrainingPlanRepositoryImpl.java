@@ -1,6 +1,7 @@
 package eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.repository;
 
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanDocument;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanStatus;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanType;
 import lombok.RequiredArgsConstructor;
 import org.bson.Document;
@@ -27,10 +28,11 @@ class TrainingPlanRepositoryImpl implements TrainingPlanRepositoryCustom {
     @Override
     public List<TrainingPlanDocument> findAllByUserIdAndFilters(String userId,
                                                                 TrainingPlanType type,
+                                                                TrainingPlanStatus status,
                                                                 LocalDate from,
                                                                 LocalDate to) {
         MongoTemplate mongoTemplate = mongoTemplateProvider.getObject();
-        Criteria matchCriteria = buildMatchCriteria(userId, type, from, to);
+        Criteria matchCriteria = buildMatchCriteria(userId, type, status, from, to);
         Aggregation aggregation = Aggregation.newAggregation(
                 context -> new Document("$match", matchCriteria.getCriteriaObject()),
                 context -> new Document("$addFields", new Document(
@@ -49,7 +51,11 @@ class TrainingPlanRepositoryImpl implements TrainingPlanRepositoryCustom {
                 .getMappedResults();
     }
 
-    private Criteria buildMatchCriteria(String userId, TrainingPlanType type, LocalDate from, LocalDate to) {
+    private Criteria buildMatchCriteria(String userId,
+                                        TrainingPlanType type,
+                                        TrainingPlanStatus status,
+                                        LocalDate from,
+                                        LocalDate to) {
         List<Criteria> criteria = new ArrayList<>();
         criteria.add(Criteria.where("userId").is(userId));
 
@@ -60,6 +66,11 @@ class TrainingPlanRepositoryImpl implements TrainingPlanRepositoryCustom {
             ));
         } else if (type != null) {
             criteria.add(Criteria.where("type").is(type));
+        }
+
+        if (status != null) {
+            criteria.add(Criteria.where("type").is(TrainingPlanType.PLANNED_WORKOUT));
+            criteria.add(Criteria.where("status").is(status));
         }
 
         if (from != null || to != null) {
