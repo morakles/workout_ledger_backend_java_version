@@ -6,6 +6,7 @@ import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exercise.con
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exercise.model.ExerciseDocument;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exercise.repository.ExerciseRepository;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exercise.service.ExerciseReferenceChecker;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.repository.TrainingPlanRepository;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.model.UserDocument;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.model.UserProvider;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.repository.UserRepository;
@@ -76,6 +77,9 @@ class ExerciseControllerIntegrationTest {
 
     @MockitoBean
     WorkoutRepository workoutRepository;
+
+    @MockitoBean
+    TrainingPlanRepository trainingPlanRepository;
 
     Map<String, UserDocument> usersByEmail;
     Map<String, ExerciseDocument> exercisesById;

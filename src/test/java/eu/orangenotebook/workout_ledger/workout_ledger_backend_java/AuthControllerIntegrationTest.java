@@ -8,6 +8,7 @@ import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.control
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.model.UserDocument;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.model.UserProvider;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.repository.UserRepository;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.repository.TrainingPlanRepository;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.workout.repository.WorkoutRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -52,6 +53,9 @@ class AuthControllerIntegrationTest {
 
     @MockitoBean
     WorkoutRepository workoutRepository;
+
+    @MockitoBean
+    TrainingPlanRepository trainingPlanRepository;
 
     @Autowired
     ObjectMapper objectMapper;
