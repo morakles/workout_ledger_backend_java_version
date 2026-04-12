@@ -15,6 +15,6 @@ public record CreateTrainingPlanRequest(
         @NotNull TrainingPlanType type,
         LocalDate plannedDate,
         @NotNull List<@NotNull @Valid TrainingPlanEntryRequest> entries,
-        @NotNull Boolean active
+        Boolean active
 ) {
 }
