@@ -6,7 +6,8 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 import java.util.List;
 import java.util.Optional;
 
-public interface TrainingPlanRepository extends MongoRepository<TrainingPlanDocument, String> {
+public interface TrainingPlanRepository extends MongoRepository<TrainingPlanDocument, String>,
+        TrainingPlanRepositoryCustom {
 
     List<TrainingPlanDocument> findAllByUserIdOrderByUpdatedAtDesc(String userId);
 
