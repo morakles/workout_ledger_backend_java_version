@@ -11,12 +11,14 @@ import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.PlannedSet;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanDocument;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanEntry;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanType;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.repository.TrainingPlanRepository;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.model.UserDocument;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.util.LinkedHashSet;
 import java.util.HashSet;
 import java.util.List;
@@ -45,8 +47,16 @@ public class TrainingPlanService {
     }
 
     public List<TrainingPlanDocument> listTrainingPlans(String authenticatedEmail) {
+        return listTrainingPlans(authenticatedEmail, null, null, null);
+    }
+
+    public List<TrainingPlanDocument> listTrainingPlans(String authenticatedEmail,
+                                                        LocalDate from,
+                                                        LocalDate to,
+                                                        TrainingPlanType type) {
         UserDocument user = getAuthenticatedUser(authenticatedEmail);
-        return trainingPlanRepository.findAllByUserIdOrderByUpdatedAtDesc(user.getId());
+        validateDateRange(from, to);
+        return trainingPlanRepository.findAllByUserIdAndFilters(user.getId(), type, from, to);
     }
 
     public TrainingPlanDocument getTrainingPlan(String authenticatedEmail, String trainingPlanId) {
@@ -122,9 +132,34 @@ public class TrainingPlanService {
     }
 
     private void validateTrainingPlan(TrainingPlanDocument trainingPlanDocument) {
+        validateAndNormalizeTypeFields(trainingPlanDocument);
         List<TrainingPlanEntry> entries = trainingPlanDocument.getEntries();
         validateUniqueEntryOrder(entries);
         entries.forEach(this::validateUniqueSetNumbers);
+    }
+
+    private void validateDateRange(LocalDate from, LocalDate to) {
+        if (from != null && to != null && from.isAfter(to)) {
+            throw new IllegalArgumentException("Query param 'from' must be before or equal to 'to'.");
+        }
+    }
+
+    private void validateAndNormalizeTypeFields(TrainingPlanDocument trainingPlanDocument) {
+        TrainingPlanType type = Optional.ofNullable(trainingPlanDocument.getType())
+                .orElse(TrainingPlanType.TEMPLATE);
+        LocalDate plannedDate = trainingPlanDocument.getPlannedDate();
+
+        if (type == TrainingPlanType.TEMPLATE && plannedDate != null) {
+            throw new IllegalArgumentException("Training plan of type TEMPLATE must not define plannedDate.");
+        }
+        if (type == TrainingPlanType.PLANNED_WORKOUT && plannedDate == null) {
+            throw new IllegalArgumentException("Training plan of type PLANNED_WORKOUT requires plannedDate.");
+        }
+
+        trainingPlanDocument.setType(type);
+        if (type == TrainingPlanType.TEMPLATE) {
+            trainingPlanDocument.setPlannedDate(null);
+        }
     }
 
     private void validateUniqueEntryOrder(List<TrainingPlanEntry> entries) {

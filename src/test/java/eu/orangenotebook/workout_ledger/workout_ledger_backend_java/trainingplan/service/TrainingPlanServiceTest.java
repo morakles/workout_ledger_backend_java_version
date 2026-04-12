@@ -13,6 +13,7 @@ import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.PlannedSetType;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanDocument;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanEntry;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanType;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.repository.TrainingPlanRepository;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.model.UserDocument;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.model.UserProvider;
@@ -26,6 +27,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -74,6 +76,8 @@ class TrainingPlanServiceTest {
         CreateTrainingPlanRequest request = createRequest(
                 " Push A ",
                 " Upper body ",
+                TrainingPlanType.TEMPLATE,
+                null,
                 true,
                 entryRequest("exercise-1", 1, plannedSetRequest(1), plannedSetRequest(2)),
                 entryRequest(" exercise-2 ", 2, plannedSetRequest(1))
@@ -94,6 +98,8 @@ class TrainingPlanServiceTest {
         assertThat(savedTrainingPlan.getUserId()).isEqualTo(USER_ID);
         assertThat(savedTrainingPlan.getName()).isEqualTo("Push A");
         assertThat(savedTrainingPlan.getDescription()).isEqualTo("Upper body");
+        assertThat(savedTrainingPlan.getType()).isEqualTo(TrainingPlanType.TEMPLATE);
+        assertThat(savedTrainingPlan.getPlannedDate()).isNull();
         assertThat(savedTrainingPlan.isActive()).isTrue();
         assertThat(savedTrainingPlan.getEntries()).hasSize(2);
         assertThat(savedTrainingPlan.getEntries().getFirst().getExerciseId()).isEqualTo("exercise-1");
@@ -110,12 +116,76 @@ class TrainingPlanServiceTest {
     void listTrainingPlansUsesAuthenticatedUserId() {
         TrainingPlanDocument newest = trainingPlan("plan-2", "Pull A", Instant.parse("2026-04-08T12:00:00Z"), entry("exercise-2", 1, plannedSet(1)));
         TrainingPlanDocument older = trainingPlan("plan-1", "Push A", Instant.parse("2026-04-07T12:00:00Z"), entry("exercise-1", 1, plannedSet(1)));
-        when(trainingPlanRepository.findAllByUserIdOrderByUpdatedAtDesc(USER_ID)).thenReturn(List.of(newest, older));
+        when(trainingPlanRepository.findAllByUserIdAndFilters(USER_ID, null, null, null)).thenReturn(List.of(newest, older));
 
         List<TrainingPlanDocument> trainingPlans = trainingPlanService.listTrainingPlans(USER_EMAIL);
 
-        verify(trainingPlanRepository).findAllByUserIdOrderByUpdatedAtDesc(USER_ID);
+        verify(trainingPlanRepository).findAllByUserIdAndFilters(USER_ID, null, null, null);
         assertThat(trainingPlans).containsExactly(newest, older);
+    }
+
+    @Test
+    @DisplayName("should create planned workout for authenticated user")
+    void createPlannedWorkoutForAuthenticatedUser() {
+        LocalDate plannedDate = LocalDate.parse("2026-04-15");
+        CreateTrainingPlanRequest request = createRequest(
+                " Pull A ",
+                " Upper body ",
+                TrainingPlanType.PLANNED_WORKOUT,
+                plannedDate,
+                true,
+                entryRequest("exercise-1", 1, plannedSetRequest(1))
+        );
+        when(exerciseRepository.findAllByIdInAndUserId(eq(Set.of("exercise-1")), eq(USER_ID)))
+                .thenReturn(List.of(exercise("exercise-1", "Bench Press")));
+        when(trainingPlanRepository.save(any(TrainingPlanDocument.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        TrainingPlanDocument createdTrainingPlan = trainingPlanService.createTrainingPlan(USER_EMAIL, request);
+
+        assertThat(createdTrainingPlan.getType()).isEqualTo(TrainingPlanType.PLANNED_WORKOUT);
+        assertThat(createdTrainingPlan.getPlannedDate()).isEqualTo(plannedDate);
+    }
+
+    @Test
+    @DisplayName("should pass type and date filters to repository")
+    void listTrainingPlansPassesFiltersToRepository() {
+        LocalDate from = LocalDate.parse("2026-04-10");
+        LocalDate to = LocalDate.parse("2026-04-20");
+        TrainingPlanDocument plannedWorkout = trainingPlan(
+                "plan-2",
+                "Pull A",
+                Instant.parse("2026-04-08T12:00:00Z"),
+                entry("exercise-2", 1, plannedSet(1))
+        );
+        plannedWorkout.setType(TrainingPlanType.PLANNED_WORKOUT);
+        plannedWorkout.setPlannedDate(LocalDate.parse("2026-04-12"));
+        when(trainingPlanRepository.findAllByUserIdAndFilters(USER_ID, TrainingPlanType.PLANNED_WORKOUT, from, to))
+                .thenReturn(List.of(plannedWorkout));
+
+        List<TrainingPlanDocument> trainingPlans = trainingPlanService.listTrainingPlans(
+                USER_EMAIL,
+                from,
+                to,
+                TrainingPlanType.PLANNED_WORKOUT
+        );
+
+        verify(trainingPlanRepository).findAllByUserIdAndFilters(USER_ID, TrainingPlanType.PLANNED_WORKOUT, from, to);
+        assertThat(trainingPlans).containsExactly(plannedWorkout);
+    }
+
+    @Test
+    @DisplayName("should reject invalid date range for list endpoint")
+    void listTrainingPlansRejectsInvalidRange() {
+        assertThatThrownBy(() -> trainingPlanService.listTrainingPlans(
+                USER_EMAIL,
+                LocalDate.parse("2026-04-20"),
+                LocalDate.parse("2026-04-10"),
+                TrainingPlanType.PLANNED_WORKOUT
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Query param 'from' must be before or equal to 'to'.");
+
+        verify(trainingPlanRepository, never()).findAllByUserIdAndFilters(anyString(), any(), any(), any());
     }
 
     @Test
@@ -156,6 +226,8 @@ class TrainingPlanServiceTest {
         UpdateTrainingPlanRequest request = updateRequest(
                 " Push B ",
                 " After ",
+                TrainingPlanType.TEMPLATE,
+                null,
                 false,
                 entryRequest("exercise-2", 1, plannedSetRequest(1), plannedSetRequest(2))
         );
@@ -171,6 +243,8 @@ class TrainingPlanServiceTest {
         assertThat(updatedTrainingPlan.getCreatedAt()).isEqualTo(createdAt);
         assertThat(updatedTrainingPlan.getName()).isEqualTo("Push B");
         assertThat(updatedTrainingPlan.getDescription()).isEqualTo("After");
+        assertThat(updatedTrainingPlan.getType()).isEqualTo(TrainingPlanType.TEMPLATE);
+        assertThat(updatedTrainingPlan.getPlannedDate()).isNull();
         assertThat(updatedTrainingPlan.isActive()).isFalse();
         assertThat(updatedTrainingPlan.getEntries()).hasSize(1);
         assertThat(updatedTrainingPlan.getEntries().getFirst().getExerciseId()).isEqualTo("exercise-2");
@@ -181,11 +255,98 @@ class TrainingPlanServiceTest {
     }
 
     @Test
+    @DisplayName("should update planned workout for authenticated user")
+    void updatePlannedWorkoutSuccess() {
+        Instant createdAt = Instant.parse("2026-04-07T12:00:00Z");
+        LocalDate plannedDate = LocalDate.parse("2026-04-18");
+        TrainingPlanDocument trainingPlan = TrainingPlanDocument.builder()
+                .id("plan-1")
+                .userId(USER_ID)
+                .name("Push A")
+                .description("Before")
+                .type(TrainingPlanType.PLANNED_WORKOUT)
+                .plannedDate(LocalDate.parse("2026-04-12"))
+                .entries(List.of(entry("exercise-1", 1, plannedSet(1))))
+                .active(true)
+                .createdAt(createdAt)
+                .updatedAt(Instant.parse("2026-04-08T12:00:00Z"))
+                .build();
+        UpdateTrainingPlanRequest request = updateRequest(
+                " Push B ",
+                " After ",
+                TrainingPlanType.PLANNED_WORKOUT,
+                plannedDate,
+                false,
+                entryRequest("exercise-2", 1, plannedSetRequest(1))
+        );
+        when(trainingPlanRepository.findByIdAndUserId("plan-1", USER_ID)).thenReturn(Optional.of(trainingPlan));
+        when(exerciseRepository.findAllByIdInAndUserId(eq(Set.of("exercise-2")), eq(USER_ID)))
+                .thenReturn(List.of(exercise("exercise-2", "Incline Bench Press")));
+        when(trainingPlanRepository.save(any(TrainingPlanDocument.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        TrainingPlanDocument updatedTrainingPlan = trainingPlanService.updateTrainingPlan(USER_EMAIL, "plan-1", request);
+
+        assertThat(updatedTrainingPlan.getType()).isEqualTo(TrainingPlanType.PLANNED_WORKOUT);
+        assertThat(updatedTrainingPlan.getPlannedDate()).isEqualTo(plannedDate);
+    }
+
+    @Test
+    @DisplayName("should switch template to planned workout")
+    void updateTrainingPlanSwitchesTemplateToPlannedWorkout() {
+        TrainingPlanDocument trainingPlan = trainingPlan("plan-1", "Push A", Instant.parse("2026-04-07T12:00:00Z"), entry("exercise-1", 1, plannedSet(1)));
+        LocalDate plannedDate = LocalDate.parse("2026-04-21");
+        UpdateTrainingPlanRequest request = updateRequest(
+                " Push B ",
+                " After ",
+                TrainingPlanType.PLANNED_WORKOUT,
+                plannedDate,
+                true,
+                entryRequest("exercise-2", 1, plannedSetRequest(1))
+        );
+        when(trainingPlanRepository.findByIdAndUserId("plan-1", USER_ID)).thenReturn(Optional.of(trainingPlan));
+        when(exerciseRepository.findAllByIdInAndUserId(eq(Set.of("exercise-2")), eq(USER_ID)))
+                .thenReturn(List.of(exercise("exercise-2", "Incline Bench Press")));
+        when(trainingPlanRepository.save(any(TrainingPlanDocument.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        TrainingPlanDocument updatedTrainingPlan = trainingPlanService.updateTrainingPlan(USER_EMAIL, "plan-1", request);
+
+        assertThat(updatedTrainingPlan.getType()).isEqualTo(TrainingPlanType.PLANNED_WORKOUT);
+        assertThat(updatedTrainingPlan.getPlannedDate()).isEqualTo(plannedDate);
+    }
+
+    @Test
+    @DisplayName("should switch planned workout to template")
+    void updateTrainingPlanSwitchesPlannedWorkoutToTemplate() {
+        TrainingPlanDocument trainingPlan = trainingPlan("plan-1", "Push A", Instant.parse("2026-04-07T12:00:00Z"), entry("exercise-1", 1, plannedSet(1)));
+        trainingPlan.setType(TrainingPlanType.PLANNED_WORKOUT);
+        trainingPlan.setPlannedDate(LocalDate.parse("2026-04-12"));
+        UpdateTrainingPlanRequest request = updateRequest(
+                " Push B ",
+                " After ",
+                TrainingPlanType.TEMPLATE,
+                null,
+                true,
+                entryRequest("exercise-2", 1, plannedSetRequest(1))
+        );
+        when(trainingPlanRepository.findByIdAndUserId("plan-1", USER_ID)).thenReturn(Optional.of(trainingPlan));
+        when(exerciseRepository.findAllByIdInAndUserId(eq(Set.of("exercise-2")), eq(USER_ID)))
+                .thenReturn(List.of(exercise("exercise-2", "Incline Bench Press")));
+        when(trainingPlanRepository.save(any(TrainingPlanDocument.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        TrainingPlanDocument updatedTrainingPlan = trainingPlanService.updateTrainingPlan(USER_EMAIL, "plan-1", request);
+
+        assertThat(updatedTrainingPlan.getType()).isEqualTo(TrainingPlanType.TEMPLATE);
+        assertThat(updatedTrainingPlan.getPlannedDate()).isNull();
+    }
+
+    @Test
     @DisplayName("should reject training plan create when batch result is missing requested exercise")
     void createTrainingPlanRejectsMissingExercise() {
         CreateTrainingPlanRequest request = createRequest(
                 "Push A",
                 "Upper body",
+                TrainingPlanType.TEMPLATE,
+                null,
                 true,
                 entryRequest("exercise-1", 1, plannedSetRequest(1)),
                 entryRequest("missing-exercise", 2, plannedSetRequest(1))
@@ -208,6 +369,8 @@ class TrainingPlanServiceTest {
         CreateTrainingPlanRequest request = createRequest(
                 "Push A",
                 "Upper body",
+                TrainingPlanType.TEMPLATE,
+                null,
                 true,
                 entryRequest("foreign-exercise", 1, plannedSetRequest(1))
         );
@@ -229,6 +392,8 @@ class TrainingPlanServiceTest {
         CreateTrainingPlanRequest request = createRequest(
                 "Push A",
                 "Upper body",
+                TrainingPlanType.TEMPLATE,
+                null,
                 true,
                 entryRequest(null, 1, plannedSetRequest(1)),
                 entryRequest("   ", 2, plannedSetRequest(1)),
@@ -252,6 +417,8 @@ class TrainingPlanServiceTest {
         CreateTrainingPlanRequest request = createRequest(
                 "Push A",
                 "Upper body",
+                TrainingPlanType.TEMPLATE,
+                null,
                 true,
                 entryRequest("exercise-1", 1, plannedSetRequest(1)),
                 entryRequest(" exercise-1 ", 2, plannedSetRequest(1))
@@ -271,6 +438,48 @@ class TrainingPlanServiceTest {
                 .containsExactly("Bench Press", "Bench Press");
         verify(exerciseRepository).findAllByIdInAndUserId(Set.of("exercise-1"), USER_ID);
         verify(exerciseRepository, never()).findByIdAndUserId(anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("should reject template with planned date")
+    void createTrainingPlanRejectsTemplateWithPlannedDate() {
+        CreateTrainingPlanRequest request = createRequest(
+                "Push A",
+                "Upper body",
+                TrainingPlanType.TEMPLATE,
+                LocalDate.parse("2026-04-12"),
+                true,
+                entryRequest("exercise-1", 1, plannedSetRequest(1))
+        );
+        when(exerciseRepository.findAllByIdInAndUserId(eq(Set.of("exercise-1")), eq(USER_ID)))
+                .thenReturn(List.of(exercise("exercise-1", "Bench Press")));
+
+        assertThatThrownBy(() -> trainingPlanService.createTrainingPlan(USER_EMAIL, request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Training plan of type TEMPLATE must not define plannedDate.");
+
+        verify(trainingPlanRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("should reject planned workout without planned date")
+    void createTrainingPlanRejectsPlannedWorkoutWithoutPlannedDate() {
+        CreateTrainingPlanRequest request = createRequest(
+                "Push A",
+                "Upper body",
+                TrainingPlanType.PLANNED_WORKOUT,
+                null,
+                true,
+                entryRequest("exercise-1", 1, plannedSetRequest(1))
+        );
+        when(exerciseRepository.findAllByIdInAndUserId(eq(Set.of("exercise-1")), eq(USER_ID)))
+                .thenReturn(List.of(exercise("exercise-1", "Bench Press")));
+
+        assertThatThrownBy(() -> trainingPlanService.createTrainingPlan(USER_EMAIL, request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Training plan of type PLANNED_WORKOUT requires plannedDate.");
+
+        verify(trainingPlanRepository, never()).save(any());
     }
 
     @Test
@@ -364,7 +573,7 @@ class TrainingPlanServiceTest {
 
         assertThatThrownBy(() -> trainingPlanService.createTrainingPlan(
                 USER_EMAIL,
-                createRequest("Push A", null, true, entryRequest("exercise-1", 1, plannedSetRequest(1)))
+                createRequest("Push A", null, TrainingPlanType.TEMPLATE, null, true, entryRequest("exercise-1", 1, plannedSetRequest(1)))
         ))
                 .isInstanceOf(AuthenticationException.class)
                 .hasMessage("Authenticated user not found.");
@@ -385,6 +594,7 @@ class TrainingPlanServiceTest {
                 .userId(USER_ID)
                 .name(name)
                 .description("Description")
+                .type(TrainingPlanType.TEMPLATE)
                 .entries(List.of(entries))
                 .active(true)
                 .createdAt(timestamp)
@@ -419,16 +629,20 @@ class TrainingPlanServiceTest {
 
     private CreateTrainingPlanRequest createRequest(String name,
                                                     String description,
+                                                    TrainingPlanType type,
+                                                    LocalDate plannedDate,
                                                     boolean active,
                                                     TrainingPlanEntryRequest... entries) {
-        return new CreateTrainingPlanRequest(name, description, List.of(entries), active);
+        return new CreateTrainingPlanRequest(name, description, type, plannedDate, List.of(entries), active);
     }
 
     private UpdateTrainingPlanRequest updateRequest(String name,
                                                     String description,
+                                                    TrainingPlanType type,
+                                                    LocalDate plannedDate,
                                                     boolean active,
                                                     TrainingPlanEntryRequest... entries) {
-        return new UpdateTrainingPlanRequest(name, description, List.of(entries), active);
+        return new UpdateTrainingPlanRequest(name, description, type, plannedDate, List.of(entries), active);
     }
 
     private TrainingPlanEntryRequest entryRequest(String exerciseId,

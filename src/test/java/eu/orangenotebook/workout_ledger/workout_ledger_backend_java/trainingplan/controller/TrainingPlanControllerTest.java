@@ -7,6 +7,7 @@ import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.PlannedSetType;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanDocument;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanEntry;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanType;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.service.TrainingPlanMapper;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.service.TrainingPlanService;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,6 +24,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 
 import static org.mockito.Mockito.verify;
@@ -62,7 +64,7 @@ class TrainingPlanControllerTest {
     @Test
     @DisplayName("create endpoint should return 201 with created training plan")
     void createTrainingPlanSuccess() throws Exception {
-        CreateTrainingPlanRequest request = createRequest("Push A", true);
+        CreateTrainingPlanRequest request = createTemplateRequest("Push A", true);
         TrainingPlanDocument trainingPlan = trainingPlan("plan-1", "Push A", true);
         when(trainingPlanService.createTrainingPlan(USER_EMAIL, request)).thenReturn(trainingPlan);
 
@@ -73,6 +75,7 @@ class TrainingPlanControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value("plan-1"))
                 .andExpect(jsonPath("$.name").value("Push A"))
+                .andExpect(jsonPath("$.type").value("TEMPLATE"))
                 .andExpect(jsonPath("$.active").value(true))
                 .andExpect(jsonPath("$.entries[0].exerciseId").value("exercise-1"));
 
@@ -82,9 +85,9 @@ class TrainingPlanControllerTest {
     @Test
     @DisplayName("list endpoint should return authenticated users training plans")
     void getTrainingPlansSuccess() throws Exception {
-        when(trainingPlanService.listTrainingPlans(USER_EMAIL)).thenReturn(List.of(
-                trainingPlan("plan-1", "Push A", true),
-                trainingPlan("plan-2", "Pull A", false)
+        when(trainingPlanService.listTrainingPlans(USER_EMAIL, null, null, null)).thenReturn(List.of(
+                trainingPlan("plan-1", "Push A", TrainingPlanType.TEMPLATE, null, true),
+                trainingPlan("plan-2", "Pull A", TrainingPlanType.PLANNED_WORKOUT, LocalDate.parse("2026-04-12"), false)
         ));
 
         mockMvc.perform(get("/v1/training-plans")
@@ -92,9 +95,39 @@ class TrainingPlanControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(2))
                 .andExpect(jsonPath("$[0].id").value("plan-1"))
-                .andExpect(jsonPath("$[1].id").value("plan-2"));
+                .andExpect(jsonPath("$[0].type").value("TEMPLATE"))
+                .andExpect(jsonPath("$[1].id").value("plan-2"))
+                .andExpect(jsonPath("$[1].type").value("PLANNED_WORKOUT"))
+                .andExpect(jsonPath("$[1].plannedDate").value("2026-04-12"));
 
-        verify(trainingPlanService).listTrainingPlans(USER_EMAIL);
+        verify(trainingPlanService).listTrainingPlans(USER_EMAIL, null, null, null);
+    }
+
+    @Test
+    @DisplayName("list endpoint should pass date and type filters")
+    void getTrainingPlansWithFiltersSuccess() throws Exception {
+        LocalDate from = LocalDate.parse("2026-04-10");
+        LocalDate to = LocalDate.parse("2026-04-20");
+        when(trainingPlanService.listTrainingPlans(USER_EMAIL, from, to, TrainingPlanType.PLANNED_WORKOUT))
+                .thenReturn(List.of(trainingPlan(
+                        "plan-2",
+                        "Pull A",
+                        TrainingPlanType.PLANNED_WORKOUT,
+                        LocalDate.parse("2026-04-12"),
+                        false
+                )));
+
+        mockMvc.perform(get("/v1/training-plans")
+                        .principal(authentication())
+                        .param("from", "2026-04-10")
+                        .param("to", "2026-04-20")
+                        .param("type", "PLANNED_WORKOUT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value("plan-2"))
+                .andExpect(jsonPath("$[0].plannedDate").value("2026-04-12"));
+
+        verify(trainingPlanService).listTrainingPlans(USER_EMAIL, from, to, TrainingPlanType.PLANNED_WORKOUT);
     }
 
     @Test
@@ -106,7 +139,8 @@ class TrainingPlanControllerTest {
                         .principal(authentication()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value("plan-1"))
-                .andExpect(jsonPath("$.name").value("Push A"));
+                .andExpect(jsonPath("$.name").value("Push A"))
+                .andExpect(jsonPath("$.type").value("TEMPLATE"));
     }
 
     @Test
@@ -124,7 +158,7 @@ class TrainingPlanControllerTest {
     @Test
     @DisplayName("update endpoint should return 200 with updated training plan")
     void updateTrainingPlanSuccess() throws Exception {
-        UpdateTrainingPlanRequest request = updateRequest("Push B", false);
+        UpdateTrainingPlanRequest request = updateTemplateRequest("Push B", false);
         when(trainingPlanService.updateTrainingPlan(USER_EMAIL, "plan-1", request))
                 .thenReturn(trainingPlan("plan-1", "Push B", false));
 
@@ -135,6 +169,7 @@ class TrainingPlanControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value("plan-1"))
                 .andExpect(jsonPath("$.name").value("Push B"))
+                .andExpect(jsonPath("$.type").value("TEMPLATE"))
                 .andExpect(jsonPath("$.active").value(false));
 
         verify(trainingPlanService).updateTrainingPlan(USER_EMAIL, "plan-1", request);
@@ -153,7 +188,7 @@ class TrainingPlanControllerTest {
     @Test
     @DisplayName("create endpoint should reject invalid payload")
     void createTrainingPlanValidationFailure() throws Exception {
-        CreateTrainingPlanRequest request = new CreateTrainingPlanRequest(" ", null, List.of(), null);
+        CreateTrainingPlanRequest request = new CreateTrainingPlanRequest(" ", null, null, null, List.of(), null);
 
         mockMvc.perform(post("/v1/training-plans")
                         .principal(authentication())
@@ -169,10 +204,12 @@ class TrainingPlanControllerTest {
         return new UsernamePasswordAuthenticationToken(USER_EMAIL, "n/a", List.of());
     }
 
-    private CreateTrainingPlanRequest createRequest(String name, boolean active) {
+    private CreateTrainingPlanRequest createTemplateRequest(String name, boolean active) {
         return new CreateTrainingPlanRequest(
                 name,
                 "Upper body",
+                TrainingPlanType.TEMPLATE,
+                null,
                 List.of(new TrainingPlanEntryRequest(
                         "exercise-1",
                         1,
@@ -183,10 +220,12 @@ class TrainingPlanControllerTest {
         );
     }
 
-    private UpdateTrainingPlanRequest updateRequest(String name, boolean active) {
+    private UpdateTrainingPlanRequest updateTemplateRequest(String name, boolean active) {
         return new UpdateTrainingPlanRequest(
                 name,
                 "Upper body",
+                TrainingPlanType.TEMPLATE,
+                null,
                 List.of(new TrainingPlanEntryRequest(
                         "exercise-1",
                         1,
@@ -198,11 +237,21 @@ class TrainingPlanControllerTest {
     }
 
     private TrainingPlanDocument trainingPlan(String id, String name, boolean active) {
+        return trainingPlan(id, name, TrainingPlanType.TEMPLATE, null, active);
+    }
+
+    private TrainingPlanDocument trainingPlan(String id,
+                                              String name,
+                                              TrainingPlanType type,
+                                              LocalDate plannedDate,
+                                              boolean active) {
         return TrainingPlanDocument.builder()
                 .id(id)
                 .userId("user-1")
                 .name(name)
                 .description("Upper body")
+                .type(type)
+                .plannedDate(plannedDate)
                 .entries(List.of(TrainingPlanEntry.builder()
                         .exerciseId("exercise-1")
                         .exerciseNameSnapshot("Bench Press")

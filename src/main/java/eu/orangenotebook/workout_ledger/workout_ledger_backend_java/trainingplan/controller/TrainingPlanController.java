@@ -2,9 +2,12 @@ package eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingpla
 
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.service.TrainingPlanMapper;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.service.TrainingPlanService;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanType;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.format.annotation.DateTimeFormat.ISO;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -14,10 +17,12 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -38,9 +43,15 @@ public class TrainingPlanController {
     }
 
     @GetMapping
-    public ResponseEntity<List<TrainingPlanResponse>> getTrainingPlans(Authentication authentication) {
-        List<TrainingPlanResponse> trainingPlans = trainingPlanService.listTrainingPlans(authentication.getName()).stream()
-                .map(trainingPlanMapper::toResponse)
+    public ResponseEntity<List<TrainingPlanListItemResponse>> getTrainingPlans(
+            @RequestParam(required = false) @DateTimeFormat(iso = ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = ISO.DATE) LocalDate to,
+            @RequestParam(required = false) TrainingPlanType type,
+            Authentication authentication
+    ) {
+        List<TrainingPlanListItemResponse> trainingPlans =
+                trainingPlanService.listTrainingPlans(authentication.getName(), from, to, type).stream()
+                .map(trainingPlanMapper::toListItemResponse)
                 .toList();
         return ResponseEntity.ok(trainingPlans);
     }

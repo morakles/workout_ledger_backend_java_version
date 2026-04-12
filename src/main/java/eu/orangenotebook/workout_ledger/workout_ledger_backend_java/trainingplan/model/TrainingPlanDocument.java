@@ -17,6 +17,7 @@ import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -36,7 +37,12 @@ import java.util.List;
         ),
         @CompoundIndex(
                 name = "idx_training_plans_user_updated_at_desc",
-                def = "{'userId': 1, 'updatedAt': -1}")
+                def = "{'userId': 1, 'updatedAt': -1}"
+        ),
+        @CompoundIndex(
+                name = "idx_training_plans_user_type_planned_date",
+                def = "{'userId': 1, 'type': 1, 'plannedDate': 1}"
+        )
 })
 public class TrainingPlanDocument {
 
@@ -53,6 +59,11 @@ public class TrainingPlanDocument {
 
     @Size(max = 1000)
     private String description;
+
+    @Builder.Default
+    private TrainingPlanType type = TrainingPlanType.TEMPLATE;
+
+    private LocalDate plannedDate;
 
     @Valid
     @NotNull

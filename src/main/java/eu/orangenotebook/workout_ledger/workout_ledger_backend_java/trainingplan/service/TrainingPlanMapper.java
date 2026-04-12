@@ -6,11 +6,13 @@ import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.controller.PlannedSetResponse;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.controller.TrainingPlanEntryRequest;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.controller.TrainingPlanEntryResponse;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.controller.TrainingPlanListItemResponse;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.controller.TrainingPlanResponse;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.controller.UpdateTrainingPlanRequest;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.PlannedSet;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanDocument;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanEntry;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanType;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -28,6 +30,8 @@ public class TrainingPlanMapper {
                 .userId(trimToNull(userId))
                 .name(trimToNull(request.name()))
                 .description(trimToNull(request.description()))
+                .type(request.type())
+                .plannedDate(request.plannedDate())
                 .entries(entries)
                 .active(request.active())
                 .build();
@@ -38,6 +42,8 @@ public class TrainingPlanMapper {
                                List<TrainingPlanEntry> entries) {
         trainingPlanDocument.setName(trimToNull(request.name()));
         trainingPlanDocument.setDescription(trimToNull(request.description()));
+        trainingPlanDocument.setType(request.type());
+        trainingPlanDocument.setPlannedDate(request.plannedDate());
         trainingPlanDocument.setEntries(entries);
         trainingPlanDocument.setActive(request.active());
     }
@@ -47,12 +53,23 @@ public class TrainingPlanMapper {
                 trainingPlanDocument.getId(),
                 trainingPlanDocument.getName(),
                 trainingPlanDocument.getDescription(),
+                resolveType(trainingPlanDocument),
+                trainingPlanDocument.getPlannedDate(),
                 trainingPlanDocument.getEntries().stream()
                         .map(this::toEntryResponse)
                         .toList(),
                 trainingPlanDocument.isActive(),
                 trainingPlanDocument.getCreatedAt(),
                 trainingPlanDocument.getUpdatedAt()
+        );
+    }
+
+    public TrainingPlanListItemResponse toListItemResponse(TrainingPlanDocument trainingPlanDocument) {
+        return new TrainingPlanListItemResponse(
+                trainingPlanDocument.getId(),
+                trainingPlanDocument.getName(),
+                resolveType(trainingPlanDocument),
+                trainingPlanDocument.getPlannedDate()
         );
     }
 
@@ -104,5 +121,10 @@ public class TrainingPlanMapper {
                 plannedSet.getRestSeconds(),
                 plannedSet.getType()
         );
+    }
+
+    private TrainingPlanType resolveType(TrainingPlanDocument trainingPlanDocument) {
+        return Optional.ofNullable(trainingPlanDocument.getType())
+                .orElse(TrainingPlanType.TEMPLATE);
     }
 }

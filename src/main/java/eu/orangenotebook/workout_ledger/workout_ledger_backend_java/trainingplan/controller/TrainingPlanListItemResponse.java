@@ -2,19 +2,12 @@ package eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingpla
 
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanType;
 
-import java.time.Instant;
 import java.time.LocalDate;
-import java.util.List;
 
-public record TrainingPlanResponse(
+public record TrainingPlanListItemResponse(
         String id,
         String name,
-        String description,
         TrainingPlanType type,
-        LocalDate plannedDate,
-        List<TrainingPlanEntryResponse> entries,
-        boolean active,
-        Instant createdAt,
-        Instant updatedAt
+        LocalDate plannedDate
 ) {
 }
