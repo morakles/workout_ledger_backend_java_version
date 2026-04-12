@@ -17,10 +17,14 @@ import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.reposit
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.LinkedHashSet;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static eu.orangenotebook.workout_ledger.workout_ledger_backend_java.workout.service.TrimUtil.trimToNull;
 
@@ -61,20 +65,33 @@ public class TrainingPlanService {
     }
 
     private List<TrainingPlanEntry> resolveEntries(String userId, List<TrainingPlanEntryRequest> requests) {
-        return Optional.ofNullable(requests)
-                .orElseGet(List::of)
-                .stream()
-                .map(request -> trainingPlanMapper.toEntry(request, getUserExercise(request.exerciseId(), userId)))
+        List<TrainingPlanEntryRequest> entryRequests = Optional.ofNullable(requests)
+                .orElseGet(List::of);
+        Set<String> exerciseIds = entryRequests.stream()
+                .map(TrainingPlanEntryRequest::exerciseId)
+                .map(exerciseId -> trimToNull(exerciseId))
+                .filter(exerciseId -> exerciseId != null)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        Map<String, ExerciseDocument> exercisesById = exerciseIds.isEmpty()
+                ? Map.of()
+                : exerciseRepository.findAllByIdInAndUserId(exerciseIds, userId).stream()
+                        .collect(Collectors.toMap(
+                                exercise -> trimToNull(exercise.getId()),
+                                Function.identity()
+                        ));
+
+        return entryRequests.stream()
+                .map(request -> trainingPlanMapper.toEntry(request, getUserExercise(request.exerciseId(), exercisesById)))
                 .toList();
     }
 
-    private ExerciseDocument getUserExercise(String exerciseId, String userId) {
+    private ExerciseDocument getUserExercise(String exerciseId, Map<String, ExerciseDocument> exercisesById) {
         String trimmedExerciseId = trimToNull(exerciseId);
         if (trimmedExerciseId == null) {
             throw new IllegalArgumentException("Training plan entry exerciseId must not be blank.");
         }
 
-        return exerciseRepository.findByIdAndUserId(trimmedExerciseId, userId)
+        return Optional.ofNullable(exercisesById.get(trimmedExerciseId))
                 .orElseThrow(() -> new ExerciseNotFoundException("Exercise not found."));
     }
 

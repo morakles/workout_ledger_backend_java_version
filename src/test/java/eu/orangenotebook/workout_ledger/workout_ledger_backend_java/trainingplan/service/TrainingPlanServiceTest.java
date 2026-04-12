@@ -28,10 +28,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -72,10 +75,14 @@ class TrainingPlanServiceTest {
                 " Push A ",
                 " Upper body ",
                 true,
-                entryRequest("exercise-1", 1, plannedSetRequest(1), plannedSetRequest(2))
+                entryRequest("exercise-1", 1, plannedSetRequest(1), plannedSetRequest(2)),
+                entryRequest(" exercise-2 ", 2, plannedSetRequest(1))
         );
-        when(exerciseRepository.findByIdAndUserId("exercise-1", USER_ID))
-                .thenReturn(Optional.of(exercise(" exercise-1 ", " Bench Press ")));
+        when(exerciseRepository.findAllByIdInAndUserId(eq(Set.of("exercise-1", "exercise-2")), eq(USER_ID)))
+                .thenReturn(List.of(
+                        exercise(" exercise-1 ", " Bench Press "),
+                        exercise("exercise-2", " Incline Bench Press ")
+                ));
         when(trainingPlanRepository.save(any(TrainingPlanDocument.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         TrainingPlanDocument createdTrainingPlan = trainingPlanService.createTrainingPlan(USER_EMAIL, request);
@@ -88,10 +95,14 @@ class TrainingPlanServiceTest {
         assertThat(savedTrainingPlan.getName()).isEqualTo("Push A");
         assertThat(savedTrainingPlan.getDescription()).isEqualTo("Upper body");
         assertThat(savedTrainingPlan.isActive()).isTrue();
-        assertThat(savedTrainingPlan.getEntries()).hasSize(1);
+        assertThat(savedTrainingPlan.getEntries()).hasSize(2);
         assertThat(savedTrainingPlan.getEntries().getFirst().getExerciseId()).isEqualTo("exercise-1");
         assertThat(savedTrainingPlan.getEntries().getFirst().getExerciseNameSnapshot()).isEqualTo("Bench Press");
+        assertThat(savedTrainingPlan.getEntries().get(1).getExerciseId()).isEqualTo("exercise-2");
+        assertThat(savedTrainingPlan.getEntries().get(1).getExerciseNameSnapshot()).isEqualTo("Incline Bench Press");
         assertThat(createdTrainingPlan).isSameAs(savedTrainingPlan);
+        verify(exerciseRepository).findAllByIdInAndUserId(Set.of("exercise-1", "exercise-2"), USER_ID);
+        verify(exerciseRepository, never()).findByIdAndUserId(anyString(), anyString());
     }
 
     @Test
@@ -149,8 +160,8 @@ class TrainingPlanServiceTest {
                 entryRequest("exercise-2", 1, plannedSetRequest(1), plannedSetRequest(2))
         );
         when(trainingPlanRepository.findByIdAndUserId("plan-1", USER_ID)).thenReturn(Optional.of(trainingPlan));
-        when(exerciseRepository.findByIdAndUserId("exercise-2", USER_ID))
-                .thenReturn(Optional.of(exercise("exercise-2", "Incline Bench Press")));
+        when(exerciseRepository.findAllByIdInAndUserId(eq(Set.of("exercise-2")), eq(USER_ID)))
+                .thenReturn(List.of(exercise("exercise-2", "Incline Bench Press")));
         when(trainingPlanRepository.save(any(TrainingPlanDocument.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         TrainingPlanDocument updatedTrainingPlan = trainingPlanService.updateTrainingPlan(USER_EMAIL, "plan-1", request);
@@ -165,6 +176,30 @@ class TrainingPlanServiceTest {
         assertThat(updatedTrainingPlan.getEntries().getFirst().getExerciseId()).isEqualTo("exercise-2");
         assertThat(updatedTrainingPlan.getEntries().getFirst().getExerciseNameSnapshot()).isEqualTo("Incline Bench Press");
         verify(trainingPlanRepository).save(trainingPlan);
+        verify(exerciseRepository).findAllByIdInAndUserId(Set.of("exercise-2"), USER_ID);
+        verify(exerciseRepository, never()).findByIdAndUserId(anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("should reject training plan create when batch result is missing requested exercise")
+    void createTrainingPlanRejectsMissingExercise() {
+        CreateTrainingPlanRequest request = createRequest(
+                "Push A",
+                "Upper body",
+                true,
+                entryRequest("exercise-1", 1, plannedSetRequest(1)),
+                entryRequest("missing-exercise", 2, plannedSetRequest(1))
+        );
+        when(exerciseRepository.findAllByIdInAndUserId(eq(Set.of("exercise-1", "missing-exercise")), eq(USER_ID)))
+                .thenReturn(List.of(exercise("exercise-1", "Bench Press")));
+
+        assertThatThrownBy(() -> trainingPlanService.createTrainingPlan(USER_EMAIL, request))
+                .isInstanceOf(ExerciseNotFoundException.class)
+                .hasMessage("Exercise not found.");
+
+        verify(exerciseRepository).findAllByIdInAndUserId(Set.of("exercise-1", "missing-exercise"), USER_ID);
+        verify(exerciseRepository, never()).findByIdAndUserId(anyString(), anyString());
+        verify(trainingPlanRepository, never()).save(any());
     }
 
     @Test
@@ -176,13 +211,66 @@ class TrainingPlanServiceTest {
                 true,
                 entryRequest("foreign-exercise", 1, plannedSetRequest(1))
         );
-        when(exerciseRepository.findByIdAndUserId("foreign-exercise", USER_ID)).thenReturn(Optional.empty());
+        when(exerciseRepository.findAllByIdInAndUserId(eq(Set.of("foreign-exercise")), eq(USER_ID)))
+                .thenReturn(List.of());
 
         assertThatThrownBy(() -> trainingPlanService.createTrainingPlan(USER_EMAIL, request))
                 .isInstanceOf(ExerciseNotFoundException.class)
                 .hasMessage("Exercise not found.");
 
+        verify(exerciseRepository).findAllByIdInAndUserId(Set.of("foreign-exercise"), USER_ID);
+        verify(exerciseRepository, never()).findByIdAndUserId(anyString(), anyString());
         verify(trainingPlanRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("should exclude null and blank exercise ids from batch lookup and still reject invalid entry")
+    void createTrainingPlanRejectsNullAndBlankExerciseIds() {
+        CreateTrainingPlanRequest request = createRequest(
+                "Push A",
+                "Upper body",
+                true,
+                entryRequest(null, 1, plannedSetRequest(1)),
+                entryRequest("   ", 2, plannedSetRequest(1)),
+                entryRequest(" exercise-1 ", 3, plannedSetRequest(1))
+        );
+        when(exerciseRepository.findAllByIdInAndUserId(eq(Set.of("exercise-1")), eq(USER_ID)))
+                .thenReturn(List.of(exercise("exercise-1", "Bench Press")));
+
+        assertThatThrownBy(() -> trainingPlanService.createTrainingPlan(USER_EMAIL, request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Training plan entry exerciseId must not be blank.");
+
+        verify(exerciseRepository).findAllByIdInAndUserId(Set.of("exercise-1"), USER_ID);
+        verify(exerciseRepository, never()).findByIdAndUserId(anyString(), anyString());
+        verify(trainingPlanRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("should batch duplicate exercise ids only once and resolve all entries")
+    void createTrainingPlanHandlesDuplicateExerciseIds() {
+        CreateTrainingPlanRequest request = createRequest(
+                "Push A",
+                "Upper body",
+                true,
+                entryRequest("exercise-1", 1, plannedSetRequest(1)),
+                entryRequest(" exercise-1 ", 2, plannedSetRequest(1))
+        );
+        when(exerciseRepository.findAllByIdInAndUserId(eq(Set.of("exercise-1")), eq(USER_ID)))
+                .thenReturn(List.of(exercise("exercise-1", "Bench Press")));
+        when(trainingPlanRepository.save(any(TrainingPlanDocument.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        TrainingPlanDocument createdTrainingPlan = trainingPlanService.createTrainingPlan(USER_EMAIL, request);
+
+        assertThat(createdTrainingPlan.getEntries()).hasSize(2);
+        assertThat(createdTrainingPlan.getEntries())
+                .extracting(TrainingPlanEntry::getExerciseId)
+                .containsExactly("exercise-1", "exercise-1");
+        assertThat(createdTrainingPlan.getEntries())
+                .extracting(TrainingPlanEntry::getExerciseNameSnapshot)
+                .containsExactly("Bench Press", "Bench Press");
+        verify(exerciseRepository).findAllByIdInAndUserId(Set.of("exercise-1"), USER_ID);
+        verify(exerciseRepository, never()).findByIdAndUserId(anyString(), anyString());
     }
 
     @Test

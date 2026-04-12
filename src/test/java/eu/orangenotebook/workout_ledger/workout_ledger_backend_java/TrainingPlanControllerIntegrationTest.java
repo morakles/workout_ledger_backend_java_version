@@ -29,6 +29,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -101,10 +102,15 @@ class TrainingPlanControllerIntegrationTest {
         Mockito.lenient().when(userRepository.findByEmail(anyString()))
                 .thenAnswer(invocation -> Optional.ofNullable(usersByEmail.get(invocation.getArgument(0))));
 
-        Mockito.lenient().when(exerciseRepository.findByIdAndUserId(anyString(), anyString()))
-                .thenAnswer(invocation -> Optional.ofNullable(
-                        exercisesByOwnerAndId.get(exerciseKey(invocation.getArgument(1), invocation.getArgument(0)))
-                ));
+        Mockito.lenient().when(exerciseRepository.findAllByIdInAndUserId(any(), anyString()))
+                .thenAnswer(invocation -> {
+                    Collection<String> exerciseIds = invocation.getArgument(0);
+                    String userId = invocation.getArgument(1);
+                    return exerciseIds.stream()
+                            .map(exerciseId -> exercisesByOwnerAndId.get(exerciseKey(userId, exerciseId)))
+                            .filter(exercise -> exercise != null)
+                            .toList();
+                });
 
         Mockito.lenient().when(trainingPlanRepository.save(any(TrainingPlanDocument.class)))
                 .thenAnswer(invocation -> {
