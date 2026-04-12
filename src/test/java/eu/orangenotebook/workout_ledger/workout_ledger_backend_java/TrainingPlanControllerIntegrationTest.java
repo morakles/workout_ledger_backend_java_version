@@ -272,7 +272,7 @@ class TrainingPlanControllerIntegrationTest {
     }
 
     @Test
-    @DisplayName("should list all training plans for authenticated user")
+    @DisplayName("should return full training plan response contract by default")
     void getTrainingPlansReturnsAuthenticatedUsersPlans() throws Exception {
         insertTrainingPlan("plan-1", USER_ID, "Push A", Instant.parse("2026-04-08T12:00:00Z"));
         insertTrainingPlan("plan-2", USER_ID, "Pull A", Instant.parse("2026-04-10T12:00:00Z"));
@@ -285,7 +285,36 @@ class TrainingPlanControllerIntegrationTest {
                 .andExpect(jsonPath("$.length()").value(3))
                 .andExpect(jsonPath("$[*].id").value(org.hamcrest.Matchers.contains("plan-1", "plan-2", "plan-3")))
                 .andExpect(jsonPath("$[*].type").value(org.hamcrest.Matchers.everyItem(org.hamcrest.Matchers.is("TEMPLATE"))))
+                .andExpect(jsonPath("$[0].description").value("Upper body"))
+                .andExpect(jsonPath("$[0].entries[0].exerciseId").value("exercise-1"))
+                .andExpect(jsonPath("$[0].entries[0].exerciseNameSnapshot").value("Bench Press"))
+                .andExpect(jsonPath("$[0].active").value(true))
+                .andExpect(jsonPath("$[0].createdAt").value("2026-04-08T12:00:00Z"))
+                .andExpect(jsonPath("$[0].updatedAt").value("2026-04-08T12:00:00Z"))
                 .andExpect(jsonPath("$[0].status").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("should expose lightweight training plan summaries explicitly")
+    void getTrainingPlanSummariesReturnsLightweightRepresentation() throws Exception {
+        insertTrainingPlan("plan-1", USER_ID, "Workout A", TrainingPlanType.PLANNED_WORKOUT, LocalDate.parse("2026-04-12"),
+                Instant.parse("2026-04-08T12:00:00Z"));
+        insertTrainingPlan("plan-2", USER_ID, "Template A", Instant.parse("2026-04-09T12:00:00Z"));
+
+        mockMvc.perform(get("/v1/training-plans/summaries")
+                        .header("Authorization", bearerToken(USER_EMAIL)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[*].id").value(org.hamcrest.Matchers.contains("plan-1", "plan-2")))
+                .andExpect(jsonPath("$[0].name").value("Workout A"))
+                .andExpect(jsonPath("$[0].type").value("PLANNED_WORKOUT"))
+                .andExpect(jsonPath("$[0].status").value("PLANNED"))
+                .andExpect(jsonPath("$[0].plannedDate").value("2026-04-12"))
+                .andExpect(jsonPath("$[0].description").doesNotExist())
+                .andExpect(jsonPath("$[0].entries").doesNotExist())
+                .andExpect(jsonPath("$[0].active").doesNotExist())
+                .andExpect(jsonPath("$[0].createdAt").doesNotExist())
+                .andExpect(jsonPath("$[0].updatedAt").doesNotExist());
     }
 
     @Test

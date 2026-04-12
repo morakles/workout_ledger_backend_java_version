@@ -10,6 +10,8 @@ import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exception.Tr
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.controller.CreateTrainingPlanRequest;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.controller.PlannedSetRequest;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.controller.TrainingPlanEntryRequest;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.controller.TrainingPlanListItemResponse;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.controller.TrainingPlanResponse;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.controller.UpdateTrainingPlanRequest;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.PlannedSet;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.PlannedSetType;
@@ -126,6 +128,51 @@ class TrainingPlanServiceTest {
 
         verify(trainingPlanRepository).findAllByUserIdAndFilters(USER_ID, null, null, null, null);
         assertThat(trainingPlans).containsExactly(newest, older);
+    }
+
+    @Test
+    @DisplayName("should return full list responses with backward compatible fields")
+    void listTrainingPlanResponsesMapsFullContract() {
+        TrainingPlanDocument trainingPlan = trainingPlan("plan-1", "Push A", Instant.parse("2026-04-07T12:00:00Z"), entry("exercise-1", 1, plannedSet(1)));
+        when(trainingPlanRepository.findAllByUserIdAndFilters(USER_ID, null, null, null, null)).thenReturn(List.of(trainingPlan));
+
+        List<TrainingPlanResponse> responses = trainingPlanService.listTrainingPlanResponses(
+                USER_EMAIL,
+                TrainingPlanListQuery.unfiltered()
+        );
+
+        assertThat(responses).singleElement().satisfies(response -> {
+            assertThat(response.id()).isEqualTo("plan-1");
+            assertThat(response.description()).isEqualTo("Description");
+            assertThat(response.entries()).hasSize(1);
+            assertThat(response.active()).isTrue();
+            assertThat(response.createdAt()).isEqualTo(Instant.parse("2026-04-07T12:00:00Z"));
+            assertThat(response.updatedAt()).isEqualTo(Instant.parse("2026-04-07T12:00:00Z"));
+        });
+    }
+
+    @Test
+    @DisplayName("should return summary list items without changing query behavior")
+    void listTrainingPlanSummariesMapsSummaryProjection() {
+        TrainingPlanDocument plannedWorkout = trainingPlan("plan-2", "Pull A", Instant.parse("2026-04-08T12:00:00Z"), entry("exercise-2", 1, plannedSet(1)));
+        plannedWorkout.setType(TrainingPlanType.PLANNED_WORKOUT);
+        plannedWorkout.setStatus(TrainingPlanStatus.PLANNED);
+        plannedWorkout.setPlannedDate(LocalDate.parse("2026-04-12"));
+        when(trainingPlanRepository.findAllByUserIdAndFilters(USER_ID, TrainingPlanType.PLANNED_WORKOUT, null, null, null))
+                .thenReturn(List.of(plannedWorkout));
+
+        List<TrainingPlanListItemResponse> responses = trainingPlanService.listTrainingPlanSummaries(
+                USER_EMAIL,
+                new TrainingPlanListQuery(null, null, TrainingPlanType.PLANNED_WORKOUT, null)
+        );
+
+        assertThat(responses).containsExactly(new TrainingPlanListItemResponse(
+                "plan-2",
+                "Pull A",
+                TrainingPlanType.PLANNED_WORKOUT,
+                TrainingPlanStatus.PLANNED,
+                LocalDate.parse("2026-04-12")
+        ));
     }
 
     @Test

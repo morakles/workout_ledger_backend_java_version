@@ -9,6 +9,8 @@ import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exercise.mod
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exercise.repository.ExerciseRepository;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.controller.CreateTrainingPlanRequest;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.controller.TrainingPlanEntryRequest;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.controller.TrainingPlanListItemResponse;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.controller.TrainingPlanResponse;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.controller.UpdateTrainingPlanRequest;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.PlannedSet;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanDocument;
@@ -50,7 +52,21 @@ public class TrainingPlanService {
     }
 
     public List<TrainingPlanDocument> listTrainingPlans(String authenticatedEmail) {
-        return listTrainingPlans(authenticatedEmail, null, null, null, null);
+        return listTrainingPlans(authenticatedEmail, TrainingPlanListQuery.unfiltered());
+    }
+
+    public List<TrainingPlanResponse> listTrainingPlanResponses(String authenticatedEmail,
+                                                                TrainingPlanListQuery query) {
+        return listTrainingPlans(authenticatedEmail, query, trainingPlanMapper::toResponse);
+    }
+
+    public List<TrainingPlanListItemResponse> listTrainingPlanSummaries(String authenticatedEmail,
+                                                                        TrainingPlanListQuery query) {
+        return listTrainingPlans(authenticatedEmail, query, trainingPlanMapper::toListItemResponse);
+    }
+
+    public List<TrainingPlanDocument> listTrainingPlans(String authenticatedEmail, TrainingPlanListQuery query) {
+        return findTrainingPlans(authenticatedEmail, query);
     }
 
     public List<TrainingPlanDocument> listTrainingPlans(String authenticatedEmail,
@@ -58,9 +74,27 @@ public class TrainingPlanService {
                                                         LocalDate to,
                                                         TrainingPlanType type,
                                                         TrainingPlanStatus status) {
+        return listTrainingPlans(authenticatedEmail, new TrainingPlanListQuery(from, to, type, status));
+    }
+
+    private List<TrainingPlanDocument> findTrainingPlans(String authenticatedEmail, TrainingPlanListQuery query) {
         UserDocument user = getAuthenticatedUser(authenticatedEmail);
-        validateDateRange(from, to);
-        return trainingPlanRepository.findAllByUserIdAndFilters(user.getId(), type, status, from, to);
+        validateDateRange(query.from(), query.to());
+        return trainingPlanRepository.findAllByUserIdAndFilters(
+                user.getId(),
+                query.type(),
+                query.status(),
+                query.from(),
+                query.to()
+        );
+    }
+
+    private <T> List<T> listTrainingPlans(String authenticatedEmail,
+                                          TrainingPlanListQuery query,
+                                          Function<TrainingPlanDocument, T> mapper) {
+        return findTrainingPlans(authenticatedEmail, query).stream()
+                .map(mapper)
+                .toList();
     }
 
     public TrainingPlanDocument getTrainingPlan(String authenticatedEmail, String trainingPlanId) {

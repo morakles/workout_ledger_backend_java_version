@@ -9,6 +9,7 @@ import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanEntry;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanStatus;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanType;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.service.TrainingPlanListQuery;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.service.TrainingPlanMapper;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.service.TrainingPlanService;
 import org.junit.jupiter.api.BeforeEach;
@@ -47,17 +48,19 @@ class TrainingPlanControllerTest {
     @Mock
     TrainingPlanService trainingPlanService;
 
+    TrainingPlanMapper trainingPlanMapper;
     MockMvc mockMvc;
     ObjectMapper objectMapper;
 
     @BeforeEach
     void setUp() {
         objectMapper = new ObjectMapper().findAndRegisterModules();
+        trainingPlanMapper = new TrainingPlanMapper();
 
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
 
-        mockMvc = MockMvcBuilders.standaloneSetup(new TrainingPlanController(trainingPlanService, new TrainingPlanMapper()))
+        mockMvc = MockMvcBuilders.standaloneSetup(new TrainingPlanController(trainingPlanService, trainingPlanMapper))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setValidator(validator)
                 .build();
@@ -88,9 +91,11 @@ class TrainingPlanControllerTest {
     @Test
     @DisplayName("list endpoint should return authenticated users training plans")
     void getTrainingPlansSuccess() throws Exception {
-        when(trainingPlanService.listTrainingPlans(USER_EMAIL, null, null, null, null)).thenReturn(List.of(
-                trainingPlan("plan-1", "Push A", TrainingPlanType.TEMPLATE, null, true),
-                trainingPlan("plan-2", "Pull A", TrainingPlanType.PLANNED_WORKOUT, LocalDate.parse("2026-04-12"), false)
+        TrainingPlanDocument template = trainingPlan("plan-1", "Push A", TrainingPlanType.TEMPLATE, null, true);
+        TrainingPlanDocument plannedWorkout = trainingPlan("plan-2", "Pull A", TrainingPlanType.PLANNED_WORKOUT, LocalDate.parse("2026-04-12"), false);
+        when(trainingPlanService.listTrainingPlanResponses(USER_EMAIL, TrainingPlanListQuery.unfiltered())).thenReturn(List.of(
+                trainingPlanMapper.toResponse(template),
+                trainingPlanMapper.toResponse(plannedWorkout)
         ));
 
         mockMvc.perform(get("/v1/training-plans")
@@ -105,7 +110,7 @@ class TrainingPlanControllerTest {
                 .andExpect(jsonPath("$[1].status").value("PLANNED"))
                 .andExpect(jsonPath("$[1].plannedDate").value("2026-04-12"));
 
-        verify(trainingPlanService).listTrainingPlans(USER_EMAIL, null, null, null, null);
+        verify(trainingPlanService).listTrainingPlanResponses(USER_EMAIL, TrainingPlanListQuery.unfiltered());
     }
 
     @Test
@@ -113,14 +118,15 @@ class TrainingPlanControllerTest {
     void getTrainingPlansWithFiltersSuccess() throws Exception {
         LocalDate from = LocalDate.parse("2026-04-10");
         LocalDate to = LocalDate.parse("2026-04-20");
-        when(trainingPlanService.listTrainingPlans(USER_EMAIL, from, to, TrainingPlanType.PLANNED_WORKOUT, null))
-                .thenReturn(List.of(trainingPlan(
+        TrainingPlanListQuery query = new TrainingPlanListQuery(from, to, TrainingPlanType.PLANNED_WORKOUT, null);
+        when(trainingPlanService.listTrainingPlanResponses(USER_EMAIL, query))
+                .thenReturn(List.of(trainingPlanMapper.toResponse(trainingPlan(
                         "plan-2",
                         "Pull A",
                         TrainingPlanType.PLANNED_WORKOUT,
                         LocalDate.parse("2026-04-12"),
                         false
-                )));
+                ))));
 
         mockMvc.perform(get("/v1/training-plans")
                         .principal(authentication())
@@ -133,7 +139,36 @@ class TrainingPlanControllerTest {
                 .andExpect(jsonPath("$[0].status").value("PLANNED"))
                 .andExpect(jsonPath("$[0].plannedDate").value("2026-04-12"));
 
-        verify(trainingPlanService).listTrainingPlans(USER_EMAIL, from, to, TrainingPlanType.PLANNED_WORKOUT, null);
+        verify(trainingPlanService).listTrainingPlanResponses(USER_EMAIL, query);
+    }
+
+    @Test
+    @DisplayName("summary endpoint should return lightweight training plan items")
+    void getTrainingPlanSummariesSuccess() throws Exception {
+        TrainingPlanDocument template = trainingPlan("plan-1", "Push A", TrainingPlanType.TEMPLATE, null, true);
+        TrainingPlanDocument plannedWorkout = trainingPlan("plan-2", "Pull A", TrainingPlanType.PLANNED_WORKOUT, LocalDate.parse("2026-04-12"), false);
+        when(trainingPlanService.listTrainingPlanSummaries(USER_EMAIL, TrainingPlanListQuery.unfiltered())).thenReturn(List.of(
+                trainingPlanMapper.toListItemResponse(template),
+                trainingPlanMapper.toListItemResponse(plannedWorkout)
+        ));
+
+        mockMvc.perform(get("/v1/training-plans/summaries")
+                        .principal(authentication()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].id").value("plan-1"))
+                .andExpect(jsonPath("$[0].type").value("TEMPLATE"))
+                .andExpect(jsonPath("$[0].description").doesNotExist())
+                .andExpect(jsonPath("$[0].entries").doesNotExist())
+                .andExpect(jsonPath("$[0].active").doesNotExist())
+                .andExpect(jsonPath("$[0].createdAt").doesNotExist())
+                .andExpect(jsonPath("$[0].updatedAt").doesNotExist())
+                .andExpect(jsonPath("$[1].id").value("plan-2"))
+                .andExpect(jsonPath("$[1].type").value("PLANNED_WORKOUT"))
+                .andExpect(jsonPath("$[1].status").value("PLANNED"))
+                .andExpect(jsonPath("$[1].plannedDate").value("2026-04-12"));
+
+        verify(trainingPlanService).listTrainingPlanSummaries(USER_EMAIL, TrainingPlanListQuery.unfiltered());
     }
 
     @Test

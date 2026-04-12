@@ -1,6 +1,7 @@
 package eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.controller;
 
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.service.TrainingPlanMapper;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.service.TrainingPlanListQuery;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.service.TrainingPlanService;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanStatus;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanType;
@@ -45,18 +46,31 @@ public class TrainingPlanController {
     }
 
     @GetMapping
-    public ResponseEntity<List<TrainingPlanListItemResponse>> getTrainingPlans(
+    public ResponseEntity<List<TrainingPlanResponse>> getTrainingPlans(
             @RequestParam(required = false) @DateTimeFormat(iso = ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = ISO.DATE) LocalDate to,
             @RequestParam(required = false) TrainingPlanType type,
             @RequestParam(required = false) TrainingPlanStatus status,
             Authentication authentication
     ) {
-        List<TrainingPlanListItemResponse> trainingPlans =
-                trainingPlanService.listTrainingPlans(authentication.getName(), from, to, type, status).stream()
-                .map(trainingPlanMapper::toListItemResponse)
-                .toList();
-        return ResponseEntity.ok(trainingPlans);
+        return ResponseEntity.ok(trainingPlanService.listTrainingPlanResponses(
+                authentication.getName(),
+                new TrainingPlanListQuery(from, to, type, status)
+        ));
+    }
+
+    @GetMapping("/summaries")
+    public ResponseEntity<List<TrainingPlanListItemResponse>> getTrainingPlanSummaries(
+            @RequestParam(required = false) @DateTimeFormat(iso = ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = ISO.DATE) LocalDate to,
+            @RequestParam(required = false) TrainingPlanType type,
+            @RequestParam(required = false) TrainingPlanStatus status,
+            Authentication authentication
+    ) {
+        return ResponseEntity.ok(trainingPlanService.listTrainingPlanSummaries(
+                authentication.getName(),
+                new TrainingPlanListQuery(from, to, type, status)
+        ));
     }
 
     @GetMapping("/{trainingPlanId}")
