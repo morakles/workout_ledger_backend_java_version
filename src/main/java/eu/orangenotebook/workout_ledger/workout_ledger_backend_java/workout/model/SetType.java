@@ -4,5 +4,7 @@ public enum SetType {
     NORMAL,
     WARMUP,
     DROP,
+    TIME,
+    DISTANCE,
     FAILURE
 }

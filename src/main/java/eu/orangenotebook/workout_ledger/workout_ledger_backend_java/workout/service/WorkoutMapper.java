@@ -3,13 +3,17 @@ package eu.orangenotebook.workout_ledger.workout_ledger_backend_java.workout.ser
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.workout.controller.CreateSetEntryRequest;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.workout.controller.CreateWorkoutEntryRequest;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.workout.controller.CreateWorkoutRequest;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.workout.controller.PatchWorkoutRequest;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.workout.controller.SetEntryResponse;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.workout.controller.WorkoutEntryResponse;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.workout.controller.WorkoutResponse;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.workout.model.SetEntry;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.workout.model.SetType;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.workout.model.WorkoutDocument;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.workout.model.WorkoutEntry;
 import org.springframework.stereotype.Component;
+
+import java.util.List;
 
 import static eu.orangenotebook.workout_ledger.workout_ledger_backend_java.workout.service.TrimUtil.trimToNull;
 
@@ -21,10 +25,26 @@ public class WorkoutMapper {
                 .userId(trimToNull(userId))
                 .name(trimToNull(request.name()))
                 .workoutDate(request.workoutDate())
-                .entries(request.entries().stream()
-                        .map(this::toWorkoutEntry)
-                        .toList())
+                .entries(toWorkoutEntries(request.entries()))
                 .build();
+    }
+
+    public void updateDocument(WorkoutDocument workoutDocument, CreateWorkoutRequest request) {
+        workoutDocument.setName(trimToNull(request.name()));
+        workoutDocument.setWorkoutDate(request.workoutDate());
+        workoutDocument.setEntries(toWorkoutEntries(request.entries()));
+    }
+
+    public void partialUpdateDocument(WorkoutDocument workoutDocument, PatchWorkoutRequest request) {
+        if (request.name() != null) {
+            workoutDocument.setName(trimToNull(request.name()));
+        }
+        if (request.workoutDate() != null) {
+            workoutDocument.setWorkoutDate(request.workoutDate());
+        }
+        if (request.entries() != null) {
+            workoutDocument.setEntries(toWorkoutEntries(request.entries()));
+        }
     }
 
     public WorkoutResponse toResponse(WorkoutDocument workoutDocument) {
@@ -38,6 +58,12 @@ public class WorkoutMapper {
                 workoutDocument.getCreatedAt(),
                 workoutDocument.getUpdatedAt()
         );
+    }
+
+    private List<WorkoutEntry> toWorkoutEntries(List<CreateWorkoutEntryRequest> requests) {
+        return requests.stream()
+                .map(this::toWorkoutEntry)
+                .toList();
     }
 
     private WorkoutEntry toWorkoutEntry(CreateWorkoutEntryRequest request) {
@@ -58,7 +84,7 @@ public class WorkoutMapper {
                 .restSeconds(request.restSeconds())
                 .durationSeconds(request.durationSeconds())
                 .distanceMeters(request.distanceMeters())
-                .type(request.type())
+                .type(normalizeSetType(request.type()))
                 .build();
     }
 
@@ -80,7 +106,11 @@ public class WorkoutMapper {
                 setEntry.getRestSeconds(),
                 setEntry.getDurationSeconds(),
                 setEntry.getDistanceMeters(),
-                setEntry.getType()
+                normalizeSetType(setEntry.getType())
         );
+    }
+
+    private SetType normalizeSetType(SetType setType) {
+        return setType != null ? setType : SetType.NORMAL;
     }
 }
