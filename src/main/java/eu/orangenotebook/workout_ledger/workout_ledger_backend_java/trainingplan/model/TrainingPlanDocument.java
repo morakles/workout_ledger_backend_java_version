@@ -33,7 +33,10 @@ import java.util.List;
         @CompoundIndex(
                 name = "idx_training_plans_user_name",
                 def = "{'userId': 1, 'name': 1}"
-        )
+        ),
+        @CompoundIndex(
+                name = "idx_training_plans_user_updated_at_desc",
+                def = "{'userId': 1, 'updatedAt': -1}")
 })
 public class TrainingPlanDocument {
 
