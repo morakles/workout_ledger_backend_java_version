@@ -22,7 +22,6 @@ public class SetEntry {
     @Positive
     private Double weight;
 
-    @NotNull
     @Min(1)
     private Integer reps;
 

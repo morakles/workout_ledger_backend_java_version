@@ -1,6 +1,7 @@
 package eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exception;
 
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
+import jakarta.validation.ConstraintViolationException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -9,6 +10,7 @@ import org.springframework.context.support.DefaultMessageSourceResolvable;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -48,6 +50,12 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.NOT_FOUND, ex.getMessage(), request);
     }
 
+    @ExceptionHandler(WorkoutNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleWorkoutNotFound(WorkoutNotFoundException ex,
+                                                                  HttpServletRequest request) {
+        return buildResponse(HttpStatus.NOT_FOUND, ex.getMessage(), request);
+    }
+
     @ExceptionHandler(ExerciseInUseException.class)
     public ResponseEntity<ApiErrorResponse> handleExerciseInUse(ExerciseInUseException ex,
                                                                 HttpServletRequest request) {
@@ -79,6 +87,28 @@ public class GlobalExceptionHandler {
         String message = ex.getBindingResult().getFieldErrors().stream()
                 .findFirst()
                 .map(DefaultMessageSourceResolvable::getDefaultMessage)
+                .orElse("Validation failed");
+        return buildResponse(HttpStatus.BAD_REQUEST, message, request);
+    }
+
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    public ResponseEntity<ApiErrorResponse> handleHandlerMethodValidation(HandlerMethodValidationException ex,
+                                                                          HttpServletRequest request) {
+        String message = ex.getAllErrors().stream()
+                .findFirst()
+                .map(error -> error instanceof DefaultMessageSourceResolvable resolvable
+                        ? resolvable.getDefaultMessage()
+                        : "Validation failed")
+                .orElse("Validation failed");
+        return buildResponse(HttpStatus.BAD_REQUEST, message, request);
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ApiErrorResponse> handleConstraintViolation(ConstraintViolationException ex,
+                                                                      HttpServletRequest request) {
+        String message = ex.getConstraintViolations().stream()
+                .findFirst()
+                .map(violation -> violation.getMessage())
                 .orElse("Validation failed");
         return buildResponse(HttpStatus.BAD_REQUEST, message, request);
     }
