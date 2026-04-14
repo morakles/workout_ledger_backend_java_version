@@ -77,7 +77,11 @@ class WorkoutControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value("workout-123"))
                 .andExpect(jsonPath("$.name").value("Push day"))
-                .andExpect(jsonPath("$.workoutDate").value("2026-04-10T06:00:00Z"));
+                .andExpect(jsonPath("$.workoutDate").value("2026-04-10T06:00:00Z"))
+                .andExpect(jsonPath("$.entries[0]").exists())
+                .andExpect(jsonPath("$.entries[0].sets[0]").exists())
+                .andExpect(jsonPath("$.entries[0].sets[0].type").value(SetType.NORMAL.toString()));
+
 
         verify(workoutService).createWorkout(USER_EMAIL, request);
     }
@@ -320,8 +324,8 @@ class WorkoutControllerTest {
                         "exercise-123",
                         "Dobre czucie",
                         List.of(
-                                new CreateSetEntryRequest(1, 60.0, 10, 60, 60.0, 0.0, SetType.NORMAL),
-                                new CreateSetEntryRequest(2, 62.5, 8, 60, 60.0, 0.0, SetType.NORMAL)
+                                new CreateSetEntryRequest(1, 60.0, 10, null, 60.0, null, SetType.NORMAL),
+                                new CreateSetEntryRequest(2, 62.5, 8, null, 60.0, null, SetType.NORMAL)
                         )
                 ))
         );
@@ -336,8 +340,8 @@ class WorkoutControllerTest {
                         "exercise-123",
                         "Dobre czucie",
                         List.of(
-                                new SetEntryResponse(1, 60.0, 10, null, 60.0, 0.0, SetType.NORMAL),
-                                new SetEntryResponse(2, 62.5, 8, null, 60.0, 0.0, SetType.NORMAL)
+                                new SetEntryResponse(1, 60.0, 10, null, null, null, SetType.NORMAL),
+                                new SetEntryResponse(2, 62.5, 8, null, null, null, SetType.NORMAL)
                         )
                 )),
                 Instant.parse("2026-04-10T07:00:00Z"),
