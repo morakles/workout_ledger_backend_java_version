@@ -39,14 +39,14 @@ class JwtSecurityIntegrationTest {
     @Test
     @DisplayName("public endpoint without token returns 200")
     void publicEndpointNoToken() throws Exception {
-        mockMvc.perform(get("/api/status"))
+        mockMvc.perform(get("/api/v1/status"))
                 .andExpect(status().isOk());
     }
 
     @Test
     @DisplayName("protected endpoint without token returns 401")
     void protectedEndpointNoToken() throws Exception {
-        mockMvc.perform(get("/api/protectedstatus"))
+        mockMvc.perform(get("/api/v1/protectedstatus"))
                 .andExpect(status().isUnauthorized());
     }
 
@@ -55,7 +55,7 @@ class JwtSecurityIntegrationTest {
     void protectedEndpointValidToken() throws Exception {
         String token = jwtService.generateToken("user@email.com", List.of("ROLE_USER"));
 
-        mockMvc.perform(get("/api/protectedstatus")
+        mockMvc.perform(get("/api/v1/protectedstatus")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("Protected status OK"));
@@ -64,7 +64,7 @@ class JwtSecurityIntegrationTest {
     @Test
     @DisplayName("protected endpoint with malformed token returns 401 JSON")
     void protectedEndpointMalformedToken() throws Exception {
-        mockMvc.perform(get("/api/protectedstatus")
+        mockMvc.perform(get("/api/v1/protectedstatus")
                         .header("Authorization", "Bearer not-a-token"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
@@ -77,7 +77,7 @@ class JwtSecurityIntegrationTest {
         String valid = jwtService.generateToken("user@email.com", List.of("ROLE_USER"));
         String tampered = valid + "x"; // break signature
 
-        mockMvc.perform(get("/api/protectedstatus")
+        mockMvc.perform(get("/api/v1/protectedstatus")
                         .header("Authorization", "Bearer " + tampered))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("INVALID_TOKEN"));
@@ -96,7 +96,7 @@ class JwtSecurityIntegrationTest {
                 .signWith(Keys.hmacShaKeyFor(key), SignatureAlgorithm.HS256)
                 .compact();
 
-        mockMvc.perform(get("/api/protectedstatus")
+        mockMvc.perform(get("/api/v1/protectedstatus")
                         .header("Authorization", "Bearer " + expired))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("INVALID_TOKEN"));

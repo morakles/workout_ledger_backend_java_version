@@ -1,5 +1,6 @@
 package eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.controller;
 
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.config.ApiPaths;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.service.TrainingPlanMapper;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.service.TrainingPlanListQuery;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.service.TrainingPlanService;
@@ -29,7 +30,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 @RestController
-@RequestMapping("/v1/training-plans")
+@RequestMapping(ApiPaths.API_V1 + "/training-plans")
 @RequiredArgsConstructor
 @Validated
 @SecurityRequirement(name = "Bearer Authentication")

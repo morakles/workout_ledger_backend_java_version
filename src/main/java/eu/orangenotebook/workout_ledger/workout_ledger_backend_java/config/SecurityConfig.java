@@ -28,12 +28,12 @@ import java.util.List;
 public class SecurityConfig {
 
     private static final String[] PUBLIC_ENDPOINTS = {
-            "/api/auth/**",
+            ApiPaths.API_V1 + "/auth/**",
             "/oauth2/authorization/**",
             "/login/oauth2/code/**",
             "/swagger-ui/**",
             "/v3/api-docs/**",
-            "/api/status",
+            ApiPaths.API_V1 + "/status",
             "/favicon.ico"
     };
 

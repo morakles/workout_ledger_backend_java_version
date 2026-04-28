@@ -74,7 +74,7 @@ class ExerciseControllerTest {
         );
         when(exerciseService.listExercises(USER_EMAIL)).thenReturn(exercises);
 
-        mockMvc.perform(get("/api/exercises")
+        mockMvc.perform(get("/api/v1/exercises")
                         .principal(authentication()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(2))
@@ -104,7 +104,7 @@ class ExerciseControllerTest {
                 .build();
         when(exerciseService.updateExercise(USER_EMAIL, "exercise-1", request)).thenReturn(updatedExercise);
 
-        mockMvc.perform(put("/api/exercises/exercise-1")
+        mockMvc.perform(put("/api/v1/exercises/exercise-1")
                         .principal(authentication())
                         .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
@@ -124,7 +124,7 @@ class ExerciseControllerTest {
         when(exerciseService.updateExercise(USER_EMAIL, "missing", request))
                 .thenThrow(new ExerciseNotFoundException("Exercise not found."));
 
-        mockMvc.perform(put("/api/exercises/missing")
+        mockMvc.perform(put("/api/v1/exercises/missing")
                         .principal(authentication())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -139,7 +139,7 @@ class ExerciseControllerTest {
         when(exerciseService.updateExercise(USER_EMAIL, "foreign-exercise", request))
                 .thenThrow(new ExerciseNotFoundException("Exercise not found."));
 
-        mockMvc.perform(put("/api/exercises/foreign-exercise")
+        mockMvc.perform(put("/api/v1/exercises/foreign-exercise")
                         .principal(authentication())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -154,7 +154,7 @@ class ExerciseControllerTest {
         when(exerciseService.updateExercise(USER_EMAIL, "exercise-1", request))
                 .thenThrow(new ExerciseAlreadyExistsException("Exercise with this name already exists."));
 
-        mockMvc.perform(put("/api/exercises/exercise-1")
+        mockMvc.perform(put("/api/v1/exercises/exercise-1")
                         .principal(authentication())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -167,7 +167,7 @@ class ExerciseControllerTest {
     void updateExerciseValidationFailure() throws Exception {
         UpdateExerciseRequest request = new UpdateExerciseRequest(" ", "CHEST", "Upper chest focus");
 
-        mockMvc.perform(put("/api/exercises/exercise-1")
+        mockMvc.perform(put("/api/v1/exercises/exercise-1")
                         .principal(authentication())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))

@@ -70,7 +70,7 @@ class WorkoutControllerTest {
         CreateWorkoutRequest request = createWorkoutRequest();
         when(workoutService.createWorkout(USER_EMAIL, request)).thenReturn(workoutResponse());
 
-        mockMvc.perform(post("/api/workouts")
+        mockMvc.perform(post("/api/v1/workouts")
                         .principal(authentication())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -95,7 +95,7 @@ class WorkoutControllerTest {
                 List.of()
         );
 
-        mockMvc.perform(post("/api/workouts")
+        mockMvc.perform(post("/api/v1/workouts")
                         .principal(authentication())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -110,7 +110,7 @@ class WorkoutControllerTest {
     void getWorkoutsSuccess() throws Exception {
         when(workoutService.getAll(USER_EMAIL, 1, 10)).thenReturn(workoutPageResponse());
 
-        mockMvc.perform(get("/api/workouts")
+        mockMvc.perform(get("/api/v1/workouts")
                         .principal(authentication())
                         .queryParam("page", "1")
                         .queryParam("size", "10"))
@@ -129,7 +129,7 @@ class WorkoutControllerTest {
     @Test
     @DisplayName("list endpoint should reject negative page")
     void getWorkoutsRejectsNegativePage() throws Exception {
-        mockMvc.perform(get("/api/workouts")
+        mockMvc.perform(get("/api/v1/workouts")
                         .principal(authentication())
                         .queryParam("page", "-1"))
                 .andExpect(status().isBadRequest())
@@ -141,7 +141,7 @@ class WorkoutControllerTest {
     @Test
     @DisplayName("list endpoint should reject size below one")
     void getWorkoutsRejectsSizeBelowOne() throws Exception {
-        mockMvc.perform(get("/api/workouts")
+        mockMvc.perform(get("/api/v1/workouts")
                         .principal(authentication())
                         .queryParam("size", "0"))
                 .andExpect(status().isBadRequest())
@@ -153,7 +153,7 @@ class WorkoutControllerTest {
     @Test
     @DisplayName("list endpoint should reject size above max")
     void getWorkoutsRejectsSizeAboveMax() throws Exception {
-        mockMvc.perform(get("/api/workouts")
+        mockMvc.perform(get("/api/v1/workouts")
                         .principal(authentication())
                         .queryParam("size", "101"))
                 .andExpect(status().isBadRequest())
@@ -167,7 +167,7 @@ class WorkoutControllerTest {
     void getWorkoutSuccess() throws Exception {
         when(workoutService.getById("workout-123", USER_EMAIL)).thenReturn(workoutResponse());
 
-        mockMvc.perform(get("/api/workouts/workout-123")
+        mockMvc.perform(get("/api/v1/workouts/workout-123")
                         .principal(authentication()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value("workout-123"));
@@ -181,7 +181,7 @@ class WorkoutControllerTest {
         when(workoutService.getById("missing-workout", USER_EMAIL))
                 .thenThrow(new WorkoutNotFoundException("Workout not found."));
 
-        mockMvc.perform(get("/api/workouts/missing-workout")
+        mockMvc.perform(get("/api/v1/workouts/missing-workout")
                         .principal(authentication()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("Workout not found."));
@@ -193,7 +193,7 @@ class WorkoutControllerTest {
         CreateWorkoutRequest request = createWorkoutRequest();
         when(workoutService.update("workout-123", request, USER_EMAIL)).thenReturn(workoutResponse());
 
-        mockMvc.perform(put("/api/workouts/workout-123")
+        mockMvc.perform(put("/api/v1/workouts/workout-123")
                         .principal(authentication())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -210,7 +210,7 @@ class WorkoutControllerTest {
         when(workoutService.update("missing-workout", request, USER_EMAIL))
                 .thenThrow(new WorkoutNotFoundException("Workout not found."));
 
-        mockMvc.perform(put("/api/workouts/missing-workout")
+        mockMvc.perform(put("/api/v1/workouts/missing-workout")
                         .principal(authentication())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -227,7 +227,7 @@ class WorkoutControllerTest {
                 List.of()
         );
 
-        mockMvc.perform(put("/api/workouts/workout-123")
+        mockMvc.perform(put("/api/v1/workouts/workout-123")
                         .principal(authentication())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -242,7 +242,7 @@ class WorkoutControllerTest {
         PatchWorkoutRequest request = PatchWorkoutRequest.withName("Updated push day", null, null);
         when(workoutService.partialUpdate("workout-123", request, USER_EMAIL)).thenReturn(workoutResponse());
 
-        mockMvc.perform(patch("/api/workouts/workout-123")
+        mockMvc.perform(patch("/api/v1/workouts/workout-123")
                         .principal(authentication())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -260,7 +260,7 @@ class WorkoutControllerTest {
         PatchWorkoutRequest request = PatchWorkoutRequest.withName(null, null, null);
         when(workoutService.partialUpdate("workout-123", request, USER_EMAIL)).thenReturn(workoutResponse());
 
-        mockMvc.perform(patch("/api/workouts/workout-123")
+        mockMvc.perform(patch("/api/v1/workouts/workout-123")
                         .principal(authentication())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -281,7 +281,7 @@ class WorkoutControllerTest {
         );
         when(workoutService.partialUpdate("workout-123", request, USER_EMAIL)).thenReturn(workoutResponse());
 
-        mockMvc.perform(patch("/api/workouts/workout-123")
+        mockMvc.perform(patch("/api/v1/workouts/workout-123")
                         .principal(authentication())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -300,7 +300,7 @@ class WorkoutControllerTest {
         when(workoutService.partialUpdate("missing-workout", request, USER_EMAIL))
                 .thenThrow(new WorkoutNotFoundException("Workout not found."));
 
-        mockMvc.perform(patch("/api/workouts/missing-workout")
+        mockMvc.perform(patch("/api/v1/workouts/missing-workout")
                         .principal(authentication())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -324,7 +324,7 @@ class WorkoutControllerTest {
         when(workoutService.partialUpdate("workout-123", request, USER_EMAIL))
                 .thenThrow(new IllegalArgumentException("Set type TIME requires durationSeconds greater than 0."));
 
-        mockMvc.perform(patch("/api/workouts/workout-123")
+        mockMvc.perform(patch("/api/v1/workouts/workout-123")
                         .principal(authentication())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -355,7 +355,7 @@ class WorkoutControllerTest {
     @Test
     @DisplayName("delete endpoint should return 204")
     void deleteWorkoutSuccess() throws Exception {
-        mockMvc.perform(delete("/api/workouts/workout-123")
+        mockMvc.perform(delete("/api/v1/workouts/workout-123")
                         .principal(authentication()))
                 .andExpect(status().isNoContent());
 
@@ -368,7 +368,7 @@ class WorkoutControllerTest {
         doThrow(new WorkoutNotFoundException("Workout not found."))
                 .when(workoutService).delete("missing-workout", USER_EMAIL);
 
-        mockMvc.perform(delete("/api/workouts/missing-workout")
+        mockMvc.perform(delete("/api/v1/workouts/missing-workout")
                         .principal(authentication()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("Workout not found."));

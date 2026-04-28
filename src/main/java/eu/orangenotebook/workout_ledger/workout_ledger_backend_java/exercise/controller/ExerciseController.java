@@ -1,5 +1,6 @@
 package eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exercise.controller;
 
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.config.ApiPaths;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exercise.service.ExerciseService;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
@@ -20,7 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/exercises")
+@RequestMapping(ApiPaths.API_V1 + "/exercises")
 @RequiredArgsConstructor
 @Validated
 @SecurityRequirement(name = "Bearer Authentication")

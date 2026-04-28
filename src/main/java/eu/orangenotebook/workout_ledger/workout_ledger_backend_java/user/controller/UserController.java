@@ -1,5 +1,6 @@
 package eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.controller;
 
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.config.ApiPaths;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.model.UserDocument;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.model.UserProvider;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.service.UserService;
@@ -17,7 +18,7 @@ import java.time.Instant;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping(ApiPaths.API_V1 + "/auth")
 @RequiredArgsConstructor
 @Validated
 public class UserController {
