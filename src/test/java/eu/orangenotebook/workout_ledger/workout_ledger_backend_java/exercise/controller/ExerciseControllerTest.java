@@ -90,6 +90,44 @@ class ExerciseControllerTest {
     }
 
     @Test
+    @DisplayName("get by id endpoint should return exercise")
+    void getExerciseSuccess() throws Exception {
+        ExerciseDocument exercise = ExerciseDocument.builder()
+                .id("exercise-1")
+                .userId("user-1")
+                .name("Bench Press")
+                .category("CHEST")
+                .description("Barbell press")
+                .createdAt(Instant.parse("2026-04-07T12:00:00Z"))
+                .updatedAt(Instant.parse("2026-04-08T12:00:00Z"))
+                .build();
+        when(exerciseService.getExercise(USER_EMAIL, "exercise-1")).thenReturn(exercise);
+
+        mockMvc.perform(get("/api/v1/exercises/exercise-1")
+                        .principal(authentication()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value("exercise-1"))
+                .andExpect(jsonPath("$.name").value("Bench Press"))
+                .andExpect(jsonPath("$.category").value("CHEST"))
+                .andExpect(jsonPath("$.description").value("Barbell press"));
+
+        verify(exerciseService).getExercise(USER_EMAIL, "exercise-1");
+        verifyNoMoreInteractions(exerciseService);
+    }
+
+    @Test
+    @DisplayName("get by id endpoint should return 404 when exercise is missing")
+    void getExerciseMissing() throws Exception {
+        when(exerciseService.getExercise(USER_EMAIL, "missing"))
+                .thenThrow(new ExerciseNotFoundException("Exercise not found."));
+
+        mockMvc.perform(get("/api/v1/exercises/missing")
+                        .principal(authentication()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("Exercise not found."));
+    }
+
+    @Test
     @DisplayName("update endpoint should return 200 with updated exercise")
     void updateExerciseSuccess() throws Exception {
         UpdateExerciseRequest request = new UpdateExerciseRequest("Incline Bench Press", "CHEST", "Upper chest focus");

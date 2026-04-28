@@ -295,6 +295,40 @@ class ExerciseControllerIntegrationTest {
     }
 
     @Test
+    @DisplayName("should get authenticated users exercise by id")
+    void getExerciseByIdSuccess() throws Exception {
+        insertExercise("exercise-1", USER_ID, "Bench Press", "CHEST", Instant.parse("2026-04-05T12:00:00Z"));
+        insertExercise("exercise-2", OTHER_USER_ID, "Squat", "LEGS", Instant.parse("2026-04-06T12:00:00Z"));
+
+        mockMvc.perform(get("/api/v1/exercises/exercise-1")
+                        .header("Authorization", bearerToken(USER_EMAIL)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value("exercise-1"))
+                .andExpect(jsonPath("$.name").value("Bench Press"))
+                .andExpect(jsonPath("$.category").value("CHEST"));
+    }
+
+    @Test
+    @DisplayName("should return not found when fetched exercise does not exist")
+    void getExerciseByIdMissing() throws Exception {
+        mockMvc.perform(get("/api/v1/exercises/missing")
+                        .header("Authorization", bearerToken(USER_EMAIL)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("Exercise not found."));
+    }
+
+    @Test
+    @DisplayName("should return not found when fetched exercise belongs to another user")
+    void getExerciseByIdOfAnotherUser() throws Exception {
+        insertExercise("exercise-1", OTHER_USER_ID, "Bench Press", "CHEST", Instant.parse("2026-04-05T12:00:00Z"));
+
+        mockMvc.perform(get("/api/v1/exercises/exercise-1")
+                        .header("Authorization", bearerToken(USER_EMAIL)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("Exercise not found."));
+    }
+
+    @Test
     @DisplayName("should delete authenticated users exercise")
     void deleteExerciseSuccess() throws Exception {
         insertExercise("exercise-1", USER_ID, "Bench Press", "CHEST", Instant.parse("2026-04-05T12:00:00Z"));

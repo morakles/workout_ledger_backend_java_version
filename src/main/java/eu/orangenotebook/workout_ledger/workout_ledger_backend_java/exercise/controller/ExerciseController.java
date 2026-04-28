@@ -44,6 +44,13 @@ public class ExerciseController {
         return ResponseEntity.ok(exercises);
     }
 
+    @GetMapping("/{exerciseId}")
+    public ResponseEntity<ExerciseResponse> getExercise(@PathVariable String exerciseId,
+                                                        Authentication authentication) {
+        var exercise = exerciseService.getExercise(authentication.getName(), exerciseId);
+        return ResponseEntity.ok(ExerciseResponse.from(exercise));
+    }
+
     @PutMapping("/{exerciseId}")
     public ResponseEntity<ExerciseResponse> updateExercise(@PathVariable String exerciseId,
                                                            @Valid @RequestBody UpdateExerciseRequest request,

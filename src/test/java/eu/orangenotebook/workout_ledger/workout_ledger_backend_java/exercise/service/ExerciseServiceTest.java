@@ -122,6 +122,28 @@ class ExerciseServiceTest {
     }
 
     @Test
+    @DisplayName("should fetch exercise by id for authenticated user")
+    void getExerciseSuccess() {
+        ExerciseDocument exercise = exercise("exercise-1", "Bench Press", Instant.parse("2026-04-07T12:00:00Z"));
+        when(exerciseRepository.findByIdAndUserId("exercise-1", USER_ID)).thenReturn(Optional.of(exercise));
+
+        ExerciseDocument result = exerciseService.getExercise(USER_EMAIL, "exercise-1");
+
+        verify(exerciseRepository).findByIdAndUserId("exercise-1", USER_ID);
+        assertThat(result).isSameAs(exercise);
+    }
+
+    @Test
+    @DisplayName("should throw when fetched exercise does not exist")
+    void getExerciseNotFound() {
+        when(exerciseRepository.findByIdAndUserId("missing", USER_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> exerciseService.getExercise(USER_EMAIL, "missing"))
+                .isInstanceOf(ExerciseNotFoundException.class)
+                .hasMessage("Exercise not found.");
+    }
+
+    @Test
     @DisplayName("should reject invalid pagination parameters")
     void getExercisesRejectsInvalidPagination() {
         assertThatThrownBy(() -> exerciseService.getExercises(
