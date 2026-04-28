@@ -240,7 +240,7 @@ class WorkoutServiceTest {
     @DisplayName("should partially update provided fields only")
     void partialUpdateSuccess() {
         WorkoutDocument existingWorkout = workoutDocument();
-        PatchWorkoutRequest request = new PatchWorkoutRequest(" Updated name ", null, null);
+        PatchWorkoutRequest request = PatchWorkoutRequest.withName(" Updated name ", null, null);
         when(workoutRepository.findByIdAndUserId("workout-123", USER_ID)).thenReturn(Optional.of(existingWorkout));
         when(workoutRepository.save(existingWorkout)).thenReturn(existingWorkout);
 
@@ -252,9 +252,55 @@ class WorkoutServiceTest {
     }
 
     @Test
+    @DisplayName("should keep existing name when patch omits name")
+    void partialUpdateWithoutNameKeepsExistingName() {
+        WorkoutDocument existingWorkout = workoutDocument();
+        PatchWorkoutRequest request = PatchWorkoutRequest.withoutName(
+                Instant.parse("2026-04-12T06:00:00Z"),
+                null
+        );
+        when(workoutRepository.findByIdAndUserId("workout-123", USER_ID)).thenReturn(Optional.of(existingWorkout));
+        when(workoutRepository.save(existingWorkout)).thenReturn(existingWorkout);
+
+        WorkoutResponse updatedWorkout = workoutService.partialUpdate("workout-123", request, USER_EMAIL);
+
+        assertThat(existingWorkout.getName()).isEqualTo("Push day");
+        assertThat(existingWorkout.getWorkoutDate()).isEqualTo(Instant.parse("2026-04-12T06:00:00Z"));
+        assertThat(updatedWorkout.name()).isEqualTo("Push day");
+    }
+
+    @Test
+    @DisplayName("should clear name when patch provides explicit null name")
+    void partialUpdateWithNullNameClearsName() {
+        WorkoutDocument existingWorkout = workoutDocument();
+        PatchWorkoutRequest request = PatchWorkoutRequest.withName(null, null, null);
+        when(workoutRepository.findByIdAndUserId("workout-123", USER_ID)).thenReturn(Optional.of(existingWorkout));
+        when(workoutRepository.save(existingWorkout)).thenReturn(existingWorkout);
+
+        WorkoutResponse updatedWorkout = workoutService.partialUpdate("workout-123", request, USER_EMAIL);
+
+        assertThat(existingWorkout.getName()).isNull();
+        assertThat(updatedWorkout.name()).isNull();
+    }
+
+    @Test
+    @DisplayName("should normalize blank patch name to null")
+    void partialUpdateWithBlankNameClearsName() {
+        WorkoutDocument existingWorkout = workoutDocument();
+        PatchWorkoutRequest request = PatchWorkoutRequest.withName("   ", null, null);
+        when(workoutRepository.findByIdAndUserId("workout-123", USER_ID)).thenReturn(Optional.of(existingWorkout));
+        when(workoutRepository.save(existingWorkout)).thenReturn(existingWorkout);
+
+        WorkoutResponse updatedWorkout = workoutService.partialUpdate("workout-123", request, USER_EMAIL);
+
+        assertThat(existingWorkout.getName()).isNull();
+        assertThat(updatedWorkout.name()).isNull();
+    }
+
+    @Test
     @DisplayName("should throw when partially updating missing workout")
     void partialUpdateNotFound() {
-        PatchWorkoutRequest request = new PatchWorkoutRequest(" Updated name ", null, null);
+        PatchWorkoutRequest request = PatchWorkoutRequest.withName(" Updated name ", null, null);
         when(workoutRepository.findByIdAndUserId("missing-workout", USER_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> workoutService.partialUpdate("missing-workout", request, USER_EMAIL))
@@ -265,7 +311,7 @@ class WorkoutServiceTest {
     @Test
     @DisplayName("should reject partial update without fields")
     void partialUpdateRejectsEmptyRequest() {
-        PatchWorkoutRequest request = new PatchWorkoutRequest(null, null, null);
+        PatchWorkoutRequest request = PatchWorkoutRequest.withoutName(null, null);
 
         assertThatThrownBy(() -> workoutService.partialUpdate("workout-123", request, USER_EMAIL))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -394,8 +440,7 @@ class WorkoutServiceTest {
     @Test
     @DisplayName("should reject invalid set definition during partial update")
     void partialUpdateRejectsInvalidSetDefinition() {
-        PatchWorkoutRequest request = new PatchWorkoutRequest(
-                null,
+        PatchWorkoutRequest request = PatchWorkoutRequest.withoutName(
                 null,
                 List.of(new CreateWorkoutEntryRequest(
                         "exercise-123",

@@ -239,13 +239,54 @@ class WorkoutControllerTest {
     @Test
     @DisplayName("patch endpoint should partially update workout")
     void patchWorkoutSuccess() throws Exception {
-        PatchWorkoutRequest request = new PatchWorkoutRequest("Updated push day", null, null);
+        PatchWorkoutRequest request = PatchWorkoutRequest.withName("Updated push day", null, null);
         when(workoutService.partialUpdate("workout-123", request, USER_EMAIL)).thenReturn(workoutResponse());
 
         mockMvc.perform(patch("/api/workouts/workout-123")
                         .principal(authentication())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content("""
+                                {"name":"Updated push day"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value("workout-123"));
+
+        verify(workoutService).partialUpdate("workout-123", request, USER_EMAIL);
+    }
+
+    @Test
+    @DisplayName("patch endpoint should pass explicit null name to service")
+    void patchWorkoutWithNullName() throws Exception {
+        PatchWorkoutRequest request = PatchWorkoutRequest.withName(null, null, null);
+        when(workoutService.partialUpdate("workout-123", request, USER_EMAIL)).thenReturn(workoutResponse());
+
+        mockMvc.perform(patch("/api/workouts/workout-123")
+                        .principal(authentication())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":null}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value("workout-123"));
+
+        verify(workoutService).partialUpdate("workout-123", request, USER_EMAIL);
+    }
+
+    @Test
+    @DisplayName("patch endpoint should keep name undefined when name is omitted")
+    void patchWorkoutWithOmittedName() throws Exception {
+        PatchWorkoutRequest request = PatchWorkoutRequest.withoutName(
+                Instant.parse("2026-04-12T06:00:00Z"),
+                null
+        );
+        when(workoutService.partialUpdate("workout-123", request, USER_EMAIL)).thenReturn(workoutResponse());
+
+        mockMvc.perform(patch("/api/workouts/workout-123")
+                        .principal(authentication())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"workoutDate":"2026-04-12T06:00:00Z"}
+                                """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value("workout-123"));
 
@@ -255,14 +296,16 @@ class WorkoutControllerTest {
     @Test
     @DisplayName("patch endpoint should return 404 when workout is missing")
     void patchWorkoutNotFound() throws Exception {
-        PatchWorkoutRequest request = new PatchWorkoutRequest("Updated push day", null, null);
+        PatchWorkoutRequest request = PatchWorkoutRequest.withName("Updated push day", null, null);
         when(workoutService.partialUpdate("missing-workout", request, USER_EMAIL))
                 .thenThrow(new WorkoutNotFoundException("Workout not found."));
 
         mockMvc.perform(patch("/api/workouts/missing-workout")
                         .principal(authentication())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content("""
+                                {"name":"Updated push day"}
+                                """))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("Workout not found."));
     }
@@ -270,8 +313,7 @@ class WorkoutControllerTest {
     @Test
     @DisplayName("patch endpoint should return 400 for invalid set definition")
     void patchWorkoutInvalidSetDefinition() throws Exception {
-        PatchWorkoutRequest request = new PatchWorkoutRequest(
-                null,
+        PatchWorkoutRequest request = PatchWorkoutRequest.withoutName(
                 null,
                 List.of(new CreateWorkoutEntryRequest(
                         "exercise-123",
@@ -285,7 +327,27 @@ class WorkoutControllerTest {
         mockMvc.perform(patch("/api/workouts/workout-123")
                         .principal(authentication())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content("""
+                                {
+                                  "entries": [
+                                    {
+                                      "exerciseId": "exercise-123",
+                                      "notes": null,
+                                      "sets": [
+                                        {
+                                          "setNumber": 1,
+                                          "weight": null,
+                                          "reps": 5,
+                                          "restSeconds": null,
+                                          "durationSeconds": null,
+                                          "distanceMeters": null,
+                                          "type": "TIME"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                                """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Set type TIME requires durationSeconds greater than 0."));
     }
