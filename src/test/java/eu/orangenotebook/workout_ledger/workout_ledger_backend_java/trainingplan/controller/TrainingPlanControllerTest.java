@@ -73,7 +73,7 @@ class TrainingPlanControllerTest {
         TrainingPlanDocument trainingPlan = trainingPlan("plan-1", "Push A", true);
         when(trainingPlanService.createTrainingPlan(USER_EMAIL, request)).thenReturn(trainingPlan);
 
-        mockMvc.perform(post("/v1/training-plans")
+        mockMvc.perform(post("/api/v1/training-plans")
                         .principal(authentication())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -98,7 +98,7 @@ class TrainingPlanControllerTest {
                 trainingPlanMapper.toResponse(plannedWorkout)
         ));
 
-        mockMvc.perform(get("/v1/training-plans")
+        mockMvc.perform(get("/api/v1/training-plans")
                         .principal(authentication()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(2))
@@ -128,7 +128,7 @@ class TrainingPlanControllerTest {
                         false
                 ))));
 
-        mockMvc.perform(get("/v1/training-plans")
+        mockMvc.perform(get("/api/v1/training-plans")
                         .principal(authentication())
                         .param("from", "2026-04-10")
                         .param("to", "2026-04-20")
@@ -152,7 +152,7 @@ class TrainingPlanControllerTest {
                 trainingPlanMapper.toListItemResponse(plannedWorkout)
         ));
 
-        mockMvc.perform(get("/v1/training-plans/summaries")
+        mockMvc.perform(get("/api/v1/training-plans/summaries")
                         .principal(authentication()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(2))
@@ -176,7 +176,7 @@ class TrainingPlanControllerTest {
     void getTrainingPlanSuccess() throws Exception {
         when(trainingPlanService.getTrainingPlan(USER_EMAIL, "plan-1")).thenReturn(trainingPlan("plan-1", "Push A", true));
 
-        mockMvc.perform(get("/v1/training-plans/plan-1")
+        mockMvc.perform(get("/api/v1/training-plans/plan-1")
                         .principal(authentication()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value("plan-1"))
@@ -191,7 +191,7 @@ class TrainingPlanControllerTest {
         when(trainingPlanService.getTrainingPlan(USER_EMAIL, "missing"))
                 .thenThrow(new TrainingPlanNotFoundException("Training plan not found."));
 
-        mockMvc.perform(get("/v1/training-plans/missing")
+        mockMvc.perform(get("/api/v1/training-plans/missing")
                         .principal(authentication()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("Training plan not found."));
@@ -204,7 +204,7 @@ class TrainingPlanControllerTest {
         when(trainingPlanService.updateTrainingPlan(USER_EMAIL, "plan-1", request))
                 .thenReturn(trainingPlan("plan-1", "Push B", false));
 
-        mockMvc.perform(put("/v1/training-plans/plan-1")
+        mockMvc.perform(put("/api/v1/training-plans/plan-1")
                         .principal(authentication())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -226,7 +226,7 @@ class TrainingPlanControllerTest {
                 .thenReturn(trainingPlan("plan-1", "Push A", TrainingPlanType.PLANNED_WORKOUT, LocalDate.parse("2026-04-12"),
                         TrainingPlanStatus.DONE, true));
 
-        mockMvc.perform(patch("/v1/training-plans/plan-1/status")
+        mockMvc.perform(patch("/api/v1/training-plans/plan-1/status")
                         .principal(authentication())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -240,7 +240,7 @@ class TrainingPlanControllerTest {
     @Test
     @DisplayName("delete endpoint should return 204")
     void deleteTrainingPlanSuccess() throws Exception {
-        mockMvc.perform(delete("/v1/training-plans/plan-1")
+        mockMvc.perform(delete("/api/v1/training-plans/plan-1")
                         .principal(authentication()))
                 .andExpect(status().isNoContent());
 
@@ -252,7 +252,7 @@ class TrainingPlanControllerTest {
     void createTrainingPlanValidationFailure() throws Exception {
         CreateTrainingPlanRequest request = new CreateTrainingPlanRequest(" ", null, null, null, List.of(), null);
 
-        mockMvc.perform(post("/v1/training-plans")
+        mockMvc.perform(post("/api/v1/training-plans")
                         .principal(authentication())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))

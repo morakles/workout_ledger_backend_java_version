@@ -71,6 +71,11 @@ public class ExerciseService {
         return exerciseRepository.findAllByUserId(user.getId(), pageable);
     }
 
+    public ExerciseDocument getExercise(String authenticatedEmail, String exerciseId) {
+        UserDocument user = getAuthenticatedUser(authenticatedEmail);
+        return getUserExercise(exerciseId, user.getId());
+    }
+
     public ExerciseDocument updateExercise(String authenticatedEmail, String exerciseId, UpdateExerciseRequest request) {
         UserDocument user = getAuthenticatedUser(authenticatedEmail);
         ExerciseDocument exercise = getUserExercise(exerciseId, user.getId());

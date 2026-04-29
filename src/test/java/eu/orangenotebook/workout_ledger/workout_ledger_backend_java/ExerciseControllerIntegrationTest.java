@@ -167,7 +167,7 @@ class ExerciseControllerIntegrationTest {
     void createExerciseSuccess() throws Exception {
         CreateExerciseRequest request = new CreateExerciseRequest(" Bench Press ", " CHEST ", null);
 
-        mockMvc.perform(post("/api/exercises")
+        mockMvc.perform(post("/api/v1/exercises")
                         .header("Authorization", bearerToken(USER_EMAIL))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -195,7 +195,7 @@ class ExerciseControllerIntegrationTest {
 
         CreateExerciseRequest request = new CreateExerciseRequest("  BENCH PRESS  ", "CHEST", null);
 
-        mockMvc.perform(post("/api/exercises")
+        mockMvc.perform(post("/api/v1/exercises")
                         .header("Authorization", bearerToken(USER_EMAIL))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -210,7 +210,7 @@ class ExerciseControllerIntegrationTest {
 
         CreateExerciseRequest request = new CreateExerciseRequest("bench press", "CHEST", null);
 
-        mockMvc.perform(post("/api/exercises")
+        mockMvc.perform(post("/api/v1/exercises")
                         .header("Authorization", bearerToken(OTHER_USER_EMAIL))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -228,7 +228,7 @@ class ExerciseControllerIntegrationTest {
     void createExerciseBlankName() throws Exception {
         CreateExerciseRequest request = new CreateExerciseRequest(" ", "CHEST", null);
 
-        mockMvc.perform(post("/api/exercises")
+        mockMvc.perform(post("/api/v1/exercises")
                         .header("Authorization", bearerToken(USER_EMAIL))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -243,7 +243,7 @@ class ExerciseControllerIntegrationTest {
 
         CreateExerciseRequest request = new CreateExerciseRequest("Bench Press", "CHEST", null);
 
-        mockMvc.perform(post("/api/exercises")
+        mockMvc.perform(post("/api/v1/exercises")
                         .header("Authorization", bearerToken(USER_EMAIL))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -258,7 +258,7 @@ class ExerciseControllerIntegrationTest {
         insertExercise("exercise-2", USER_ID, "Squat", "LEGS", Instant.parse("2026-04-06T12:00:00Z"));
         insertExercise("exercise-3", OTHER_USER_ID, "Deadlift", "BACK", Instant.parse("2026-04-07T12:00:00Z"));
 
-        mockMvc.perform(get("/api/exercises")
+        mockMvc.perform(get("/api/v1/exercises")
                         .header("Authorization", bearerToken(USER_EMAIL)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(2))
@@ -277,7 +277,7 @@ class ExerciseControllerIntegrationTest {
         insertExercise("exercise-2", USER_ID, " Bench Press ", "CHEST", Instant.parse("2026-04-07T12:00:00Z"));
         insertExercise("exercise-3", USER_ID, "deadlift", "BACK", Instant.parse("2026-04-06T12:00:00Z"));
 
-        mockMvc.perform(get("/api/exercises")
+        mockMvc.perform(get("/api/v1/exercises")
                         .header("Authorization", bearerToken(USER_EMAIL)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].name").value("Bench Press"))
@@ -288,10 +288,44 @@ class ExerciseControllerIntegrationTest {
     @Test
     @DisplayName("should return 401 when listing exercises without authentication")
     void getExercisesRequiresAuthentication() throws Exception {
-        mockMvc.perform(get("/api/exercises")
+        mockMvc.perform(get("/api/v1/exercises")
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.message").value("Unauthorized"));
+    }
+
+    @Test
+    @DisplayName("should get authenticated users exercise by id")
+    void getExerciseByIdSuccess() throws Exception {
+        insertExercise("exercise-1", USER_ID, "Bench Press", "CHEST", Instant.parse("2026-04-05T12:00:00Z"));
+        insertExercise("exercise-2", OTHER_USER_ID, "Squat", "LEGS", Instant.parse("2026-04-06T12:00:00Z"));
+
+        mockMvc.perform(get("/api/v1/exercises/exercise-1")
+                        .header("Authorization", bearerToken(USER_EMAIL)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value("exercise-1"))
+                .andExpect(jsonPath("$.name").value("Bench Press"))
+                .andExpect(jsonPath("$.category").value("CHEST"));
+    }
+
+    @Test
+    @DisplayName("should return not found when fetched exercise does not exist")
+    void getExerciseByIdMissing() throws Exception {
+        mockMvc.perform(get("/api/v1/exercises/missing")
+                        .header("Authorization", bearerToken(USER_EMAIL)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("Exercise not found."));
+    }
+
+    @Test
+    @DisplayName("should return not found when fetched exercise belongs to another user")
+    void getExerciseByIdOfAnotherUser() throws Exception {
+        insertExercise("exercise-1", OTHER_USER_ID, "Bench Press", "CHEST", Instant.parse("2026-04-05T12:00:00Z"));
+
+        mockMvc.perform(get("/api/v1/exercises/exercise-1")
+                        .header("Authorization", bearerToken(USER_EMAIL)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("Exercise not found."));
     }
 
     @Test
@@ -299,7 +333,7 @@ class ExerciseControllerIntegrationTest {
     void deleteExerciseSuccess() throws Exception {
         insertExercise("exercise-1", USER_ID, "Bench Press", "CHEST", Instant.parse("2026-04-05T12:00:00Z"));
 
-        mockMvc.perform(delete("/api/exercises/exercise-1")
+        mockMvc.perform(delete("/api/v1/exercises/exercise-1")
                         .header("Authorization", bearerToken(USER_EMAIL)))
                 .andExpect(status().isNoContent());
 
@@ -309,7 +343,7 @@ class ExerciseControllerIntegrationTest {
     @Test
     @DisplayName("should return not found when exercise does not exist")
     void deleteExerciseMissing() throws Exception {
-        mockMvc.perform(delete("/api/exercises/missing")
+        mockMvc.perform(delete("/api/v1/exercises/missing")
                         .header("Authorization", bearerToken(USER_EMAIL)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("Exercise not found."));
@@ -320,7 +354,7 @@ class ExerciseControllerIntegrationTest {
     void deleteExerciseOfAnotherUser() throws Exception {
         insertExercise("exercise-1", OTHER_USER_ID, "Bench Press", "CHEST", Instant.parse("2026-04-05T12:00:00Z"));
 
-        mockMvc.perform(delete("/api/exercises/exercise-1")
+        mockMvc.perform(delete("/api/v1/exercises/exercise-1")
                         .header("Authorization", bearerToken(USER_EMAIL)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("Exercise not found."));
@@ -334,7 +368,7 @@ class ExerciseControllerIntegrationTest {
         insertExercise("exercise-1", USER_ID, "Bench Press", "CHEST", Instant.parse("2026-04-05T12:00:00Z"));
         Mockito.when(exerciseReferenceChecker.isExerciseInUse("exercise-1")).thenReturn(true);
 
-        mockMvc.perform(delete("/api/exercises/exercise-1")
+        mockMvc.perform(delete("/api/v1/exercises/exercise-1")
                         .header("Authorization", bearerToken(USER_EMAIL)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.message").value("Exercise cannot be deleted because it is used in existing workouts."));
@@ -348,7 +382,7 @@ class ExerciseControllerIntegrationTest {
         insertExercise("exercise-1", USER_ID, "Bench Press", "CHEST", Instant.parse("2026-04-05T12:00:00Z"));
         UpdateExerciseRequest request = new UpdateExerciseRequest(" Incline Bench Press ", "UPPER CHEST", " Upper chest pressing ");
 
-        mockMvc.perform(put("/api/exercises/exercise-1")
+        mockMvc.perform(put("/api/v1/exercises/exercise-1")
                         .header("Authorization", bearerToken(USER_EMAIL))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -371,7 +405,7 @@ class ExerciseControllerIntegrationTest {
     void updateExerciseMissing() throws Exception {
         UpdateExerciseRequest request = new UpdateExerciseRequest("Incline Bench Press", "CHEST", "Upper chest pressing");
 
-        mockMvc.perform(put("/api/exercises/missing")
+        mockMvc.perform(put("/api/v1/exercises/missing")
                         .header("Authorization", bearerToken(USER_EMAIL))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -385,7 +419,7 @@ class ExerciseControllerIntegrationTest {
         insertExercise("exercise-1", OTHER_USER_ID, "Bench Press", "CHEST", Instant.parse("2026-04-05T12:00:00Z"));
         UpdateExerciseRequest request = new UpdateExerciseRequest("Incline Bench Press", "CHEST", "Upper chest pressing");
 
-        mockMvc.perform(put("/api/exercises/exercise-1")
+        mockMvc.perform(put("/api/v1/exercises/exercise-1")
                         .header("Authorization", bearerToken(USER_EMAIL))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -402,7 +436,7 @@ class ExerciseControllerIntegrationTest {
         insertExercise("exercise-2", USER_ID, "Squat", "LEGS", Instant.parse("2026-04-06T12:00:00Z"));
         UpdateExerciseRequest request = new UpdateExerciseRequest("  SQUAT  ", "CHEST", "Upper chest pressing");
 
-        mockMvc.perform(put("/api/exercises/exercise-1")
+        mockMvc.perform(put("/api/v1/exercises/exercise-1")
                         .header("Authorization", bearerToken(USER_EMAIL))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -418,7 +452,7 @@ class ExerciseControllerIntegrationTest {
     void updateExerciseBlankName() throws Exception {
         UpdateExerciseRequest request = new UpdateExerciseRequest(" ", "CHEST", "Upper chest pressing");
 
-        mockMvc.perform(put("/api/exercises/exercise-1")
+        mockMvc.perform(put("/api/v1/exercises/exercise-1")
                         .header("Authorization", bearerToken(USER_EMAIL))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -434,7 +468,7 @@ class ExerciseControllerIntegrationTest {
                 .thenThrow(new DuplicateKeyException("duplicate exercise"));
         UpdateExerciseRequest request = new UpdateExerciseRequest("Incline Bench Press", "CHEST", "Upper chest pressing");
 
-        mockMvc.perform(put("/api/exercises/exercise-1")
+        mockMvc.perform(put("/api/v1/exercises/exercise-1")
                         .header("Authorization", bearerToken(USER_EMAIL))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))

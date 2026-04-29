@@ -74,7 +74,7 @@ class ExerciseControllerTest {
         );
         when(exerciseService.listExercises(USER_EMAIL)).thenReturn(exercises);
 
-        mockMvc.perform(get("/api/exercises")
+        mockMvc.perform(get("/api/v1/exercises")
                         .principal(authentication()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(2))
@@ -87,6 +87,44 @@ class ExerciseControllerTest {
 
         verify(exerciseService).listExercises(USER_EMAIL);
         verifyNoMoreInteractions(exerciseService);
+    }
+
+    @Test
+    @DisplayName("get by id endpoint should return exercise")
+    void getExerciseSuccess() throws Exception {
+        ExerciseDocument exercise = ExerciseDocument.builder()
+                .id("exercise-1")
+                .userId("user-1")
+                .name("Bench Press")
+                .category("CHEST")
+                .description("Barbell press")
+                .createdAt(Instant.parse("2026-04-07T12:00:00Z"))
+                .updatedAt(Instant.parse("2026-04-08T12:00:00Z"))
+                .build();
+        when(exerciseService.getExercise(USER_EMAIL, "exercise-1")).thenReturn(exercise);
+
+        mockMvc.perform(get("/api/v1/exercises/exercise-1")
+                        .principal(authentication()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value("exercise-1"))
+                .andExpect(jsonPath("$.name").value("Bench Press"))
+                .andExpect(jsonPath("$.category").value("CHEST"))
+                .andExpect(jsonPath("$.description").value("Barbell press"));
+
+        verify(exerciseService).getExercise(USER_EMAIL, "exercise-1");
+        verifyNoMoreInteractions(exerciseService);
+    }
+
+    @Test
+    @DisplayName("get by id endpoint should return 404 when exercise is missing")
+    void getExerciseMissing() throws Exception {
+        when(exerciseService.getExercise(USER_EMAIL, "missing"))
+                .thenThrow(new ExerciseNotFoundException("Exercise not found."));
+
+        mockMvc.perform(get("/api/v1/exercises/missing")
+                        .principal(authentication()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("Exercise not found."));
     }
 
     @Test
@@ -104,7 +142,7 @@ class ExerciseControllerTest {
                 .build();
         when(exerciseService.updateExercise(USER_EMAIL, "exercise-1", request)).thenReturn(updatedExercise);
 
-        mockMvc.perform(put("/api/exercises/exercise-1")
+        mockMvc.perform(put("/api/v1/exercises/exercise-1")
                         .principal(authentication())
                         .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
@@ -124,7 +162,7 @@ class ExerciseControllerTest {
         when(exerciseService.updateExercise(USER_EMAIL, "missing", request))
                 .thenThrow(new ExerciseNotFoundException("Exercise not found."));
 
-        mockMvc.perform(put("/api/exercises/missing")
+        mockMvc.perform(put("/api/v1/exercises/missing")
                         .principal(authentication())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -139,7 +177,7 @@ class ExerciseControllerTest {
         when(exerciseService.updateExercise(USER_EMAIL, "foreign-exercise", request))
                 .thenThrow(new ExerciseNotFoundException("Exercise not found."));
 
-        mockMvc.perform(put("/api/exercises/foreign-exercise")
+        mockMvc.perform(put("/api/v1/exercises/foreign-exercise")
                         .principal(authentication())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -154,7 +192,7 @@ class ExerciseControllerTest {
         when(exerciseService.updateExercise(USER_EMAIL, "exercise-1", request))
                 .thenThrow(new ExerciseAlreadyExistsException("Exercise with this name already exists."));
 
-        mockMvc.perform(put("/api/exercises/exercise-1")
+        mockMvc.perform(put("/api/v1/exercises/exercise-1")
                         .principal(authentication())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -167,7 +205,7 @@ class ExerciseControllerTest {
     void updateExerciseValidationFailure() throws Exception {
         UpdateExerciseRequest request = new UpdateExerciseRequest(" ", "CHEST", "Upper chest focus");
 
-        mockMvc.perform(put("/api/exercises/exercise-1")
+        mockMvc.perform(put("/api/v1/exercises/exercise-1")
                         .principal(authentication())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))

@@ -1,5 +1,6 @@
 package eu.orangenotebook.workout_ledger.workout_ledger_backend_java.status;
 
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.config.ApiPaths;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -9,7 +10,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import java.time.Instant;
 
 @RestController
-@RequestMapping("/api/protectedstatus")
+@RequestMapping(ApiPaths.API_V1 + "/protectedstatus")
 @SecurityRequirement(name = "Bearer Authentication")
 public class JwtProtectedStatusController {
 

@@ -36,7 +36,7 @@ public class WorkoutMapper {
     }
 
     public void partialUpdateDocument(WorkoutDocument workoutDocument, PatchWorkoutRequest request) {
-        if (request.name() != null) {
+        if (request.hasName()) {
             workoutDocument.setName(trimToNull(request.name()));
         }
         if (request.workoutDate() != null) {

@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.core.env.Environment;
 import org.springframework.test.context.ActiveProfiles;
@@ -18,7 +19,9 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.List;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -39,14 +42,25 @@ class JwtSecurityIntegrationTest {
     @Test
     @DisplayName("public endpoint without token returns 200")
     void publicEndpointNoToken() throws Exception {
-        mockMvc.perform(get("/api/status"))
+        mockMvc.perform(get("/api/v1/status"))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("Angular dev server origin is allowed for CORS preflight")
+    void angularDevOriginPreflightAllowed() throws Exception {
+        mockMvc.perform(options("/api/v1/exercises")
+                        .header(HttpHeaders.ORIGIN, "http://localhost:4200")
+                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "GET")
+                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "authorization"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "http://localhost:4200"));
     }
 
     @Test
     @DisplayName("protected endpoint without token returns 401")
     void protectedEndpointNoToken() throws Exception {
-        mockMvc.perform(get("/api/protectedstatus"))
+        mockMvc.perform(get("/api/v1/protectedstatus"))
                 .andExpect(status().isUnauthorized());
     }
 
@@ -55,7 +69,7 @@ class JwtSecurityIntegrationTest {
     void protectedEndpointValidToken() throws Exception {
         String token = jwtService.generateToken("user@email.com", List.of("ROLE_USER"));
 
-        mockMvc.perform(get("/api/protectedstatus")
+        mockMvc.perform(get("/api/v1/protectedstatus")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("Protected status OK"));
@@ -64,7 +78,7 @@ class JwtSecurityIntegrationTest {
     @Test
     @DisplayName("protected endpoint with malformed token returns 401 JSON")
     void protectedEndpointMalformedToken() throws Exception {
-        mockMvc.perform(get("/api/protectedstatus")
+        mockMvc.perform(get("/api/v1/protectedstatus")
                         .header("Authorization", "Bearer not-a-token"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
@@ -77,7 +91,7 @@ class JwtSecurityIntegrationTest {
         String valid = jwtService.generateToken("user@email.com", List.of("ROLE_USER"));
         String tampered = valid + "x"; // break signature
 
-        mockMvc.perform(get("/api/protectedstatus")
+        mockMvc.perform(get("/api/v1/protectedstatus")
                         .header("Authorization", "Bearer " + tampered))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("INVALID_TOKEN"));
@@ -96,7 +110,7 @@ class JwtSecurityIntegrationTest {
                 .signWith(Keys.hmacShaKeyFor(key), SignatureAlgorithm.HS256)
                 .compact();
 
-        mockMvc.perform(get("/api/protectedstatus")
+        mockMvc.perform(get("/api/v1/protectedstatus")
                         .header("Authorization", "Bearer " + expired))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("INVALID_TOKEN"));

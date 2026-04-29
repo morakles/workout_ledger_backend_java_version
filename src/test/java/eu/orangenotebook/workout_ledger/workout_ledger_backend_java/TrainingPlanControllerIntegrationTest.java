@@ -180,7 +180,7 @@ class TrainingPlanControllerIntegrationTest {
     void createTemplateTrainingPlanSuccess() throws Exception {
         CreateTrainingPlanRequest request = createTemplateRequest(" Push A ", true);
 
-        mockMvc.perform(post("/v1/training-plans")
+        mockMvc.perform(post("/api/v1/training-plans")
                         .header("Authorization", bearerToken(USER_EMAIL))
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -214,7 +214,7 @@ class TrainingPlanControllerIntegrationTest {
     void createPlannedWorkoutSuccess() throws Exception {
         CreateTrainingPlanRequest request = createPlannedWorkoutRequest(" Pull A ", LocalDate.parse("2026-04-15"), true);
 
-        mockMvc.perform(post("/v1/training-plans")
+        mockMvc.perform(post("/api/v1/training-plans")
                         .header("Authorization", bearerToken(USER_EMAIL))
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -263,7 +263,7 @@ class TrainingPlanControllerIntegrationTest {
                 }
                 """;
 
-        mockMvc.perform(post("/v1/training-plans")
+        mockMvc.perform(post("/api/v1/training-plans")
                         .header("Authorization", bearerToken(USER_EMAIL))
                         .contentType(APPLICATION_JSON)
                         .content(requestBody))
@@ -279,7 +279,7 @@ class TrainingPlanControllerIntegrationTest {
         insertTrainingPlan("plan-3", USER_ID, "Legs", Instant.parse("2026-04-09T12:00:00Z"));
         insertTrainingPlan("plan-4", OTHER_USER_ID, "Other User Plan", Instant.parse("2026-04-11T12:00:00Z"));
 
-        mockMvc.perform(get("/v1/training-plans")
+        mockMvc.perform(get("/api/v1/training-plans")
                         .header("Authorization", bearerToken(USER_EMAIL)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(3))
@@ -301,7 +301,7 @@ class TrainingPlanControllerIntegrationTest {
                 Instant.parse("2026-04-08T12:00:00Z"));
         insertTrainingPlan("plan-2", USER_ID, "Template A", Instant.parse("2026-04-09T12:00:00Z"));
 
-        mockMvc.perform(get("/v1/training-plans/summaries")
+        mockMvc.perform(get("/api/v1/training-plans/summaries")
                         .header("Authorization", bearerToken(USER_EMAIL)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(2))
@@ -326,7 +326,7 @@ class TrainingPlanControllerIntegrationTest {
                 Instant.parse("2026-04-10T12:00:00Z"));
         insertTrainingPlan("plan-3", USER_ID, "Template A", Instant.parse("2026-04-09T12:00:00Z"));
 
-        mockMvc.perform(get("/v1/training-plans")
+        mockMvc.perform(get("/api/v1/training-plans")
                         .header("Authorization", bearerToken(USER_EMAIL))
                         .param("from", "2026-04-12"))
                 .andExpect(status().isOk())
@@ -344,7 +344,7 @@ class TrainingPlanControllerIntegrationTest {
                 Instant.parse("2026-04-10T12:00:00Z"));
         insertTrainingPlan("plan-3", USER_ID, "Template A", Instant.parse("2026-04-09T12:00:00Z"));
 
-        mockMvc.perform(get("/v1/training-plans")
+        mockMvc.perform(get("/api/v1/training-plans")
                         .header("Authorization", bearerToken(USER_EMAIL))
                         .param("to", "2026-04-12"))
                 .andExpect(status().isOk())
@@ -364,7 +364,7 @@ class TrainingPlanControllerIntegrationTest {
                 Instant.parse("2026-04-10T12:00:00Z"));
         insertTrainingPlan("plan-4", USER_ID, "Template A", Instant.parse("2026-04-11T12:00:00Z"));
 
-        mockMvc.perform(get("/v1/training-plans")
+        mockMvc.perform(get("/api/v1/training-plans")
                         .header("Authorization", bearerToken(USER_EMAIL))
                         .param("from", "2026-04-11")
                         .param("to", "2026-04-13"))
@@ -382,7 +382,7 @@ class TrainingPlanControllerIntegrationTest {
         insertTrainingPlan("plan-3", USER_ID, "Workout A", TrainingPlanType.PLANNED_WORKOUT, LocalDate.parse("2026-04-15"),
                 Instant.parse("2026-04-10T12:00:00Z"));
 
-        mockMvc.perform(get("/v1/training-plans")
+        mockMvc.perform(get("/api/v1/training-plans")
                         .header("Authorization", bearerToken(USER_EMAIL))
                         .param("type", "TEMPLATE"))
                 .andExpect(status().isOk())
@@ -400,7 +400,7 @@ class TrainingPlanControllerIntegrationTest {
         insertTrainingPlan("plan-3", USER_ID, "Workout Done", TrainingPlanType.PLANNED_WORKOUT, LocalDate.parse("2026-04-12"),
                 TrainingPlanStatus.DONE, Instant.parse("2026-04-10T12:00:00Z"));
 
-        mockMvc.perform(get("/v1/training-plans")
+        mockMvc.perform(get("/api/v1/training-plans")
                         .header("Authorization", bearerToken(USER_EMAIL))
                         .param("status", "PLANNED"))
                 .andExpect(status().isOk())
@@ -419,7 +419,7 @@ class TrainingPlanControllerIntegrationTest {
         insertTrainingPlan("plan-3", USER_ID, "Workout B", TrainingPlanType.PLANNED_WORKOUT, LocalDate.parse("2026-04-12"),
                 Instant.parse("2026-04-09T12:00:00Z"));
 
-        mockMvc.perform(get("/v1/training-plans")
+        mockMvc.perform(get("/api/v1/training-plans")
                         .header("Authorization", bearerToken(USER_EMAIL))
                         .param("type", "PLANNED_WORKOUT"))
                 .andExpect(status().isOk())
@@ -437,7 +437,7 @@ class TrainingPlanControllerIntegrationTest {
         insertTrainingPlan("plan-1", OTHER_USER_ID, "Other User Workout", TrainingPlanType.PLANNED_WORKOUT, LocalDate.parse("2026-04-15"),
                 Instant.parse("2026-04-10T12:00:00Z"));
 
-        mockMvc.perform(get("/v1/training-plans")
+        mockMvc.perform(get("/api/v1/training-plans")
                         .header("Authorization", bearerToken(USER_EMAIL)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(0));
@@ -446,7 +446,7 @@ class TrainingPlanControllerIntegrationTest {
     @Test
     @DisplayName("should return 400 when from is after to")
     void getTrainingPlansRejectsInvalidRange() throws Exception {
-        mockMvc.perform(get("/v1/training-plans")
+        mockMvc.perform(get("/api/v1/training-plans")
                         .header("Authorization", bearerToken(USER_EMAIL))
                         .param("from", "2026-04-20")
                         .param("to", "2026-04-10"))
@@ -459,7 +459,7 @@ class TrainingPlanControllerIntegrationTest {
     void getTrainingPlanByIdSuccess() throws Exception {
         insertTrainingPlan("plan-1", USER_ID, "Push A", Instant.parse("2026-04-08T12:00:00Z"));
 
-        mockMvc.perform(get("/v1/training-plans/plan-1")
+        mockMvc.perform(get("/api/v1/training-plans/plan-1")
                         .header("Authorization", bearerToken(USER_EMAIL)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value("plan-1"))
@@ -474,7 +474,7 @@ class TrainingPlanControllerIntegrationTest {
     void getTrainingPlanByIdForDifferentUser() throws Exception {
         insertTrainingPlan("plan-1", OTHER_USER_ID, "Push A", Instant.parse("2026-04-08T12:00:00Z"));
 
-        mockMvc.perform(get("/v1/training-plans/plan-1")
+        mockMvc.perform(get("/api/v1/training-plans/plan-1")
                         .header("Authorization", bearerToken(USER_EMAIL)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("Training plan not found."));
@@ -487,7 +487,7 @@ class TrainingPlanControllerIntegrationTest {
         insertTrainingPlan("plan-1", USER_ID, "Push A", createdAt);
         UpdateTrainingPlanRequest request = updateTemplateRequest(" Push B ", false);
 
-        mockMvc.perform(put("/v1/training-plans/plan-1")
+        mockMvc.perform(put("/api/v1/training-plans/plan-1")
                         .header("Authorization", bearerToken(USER_EMAIL))
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -521,7 +521,7 @@ class TrainingPlanControllerIntegrationTest {
         insertTrainingPlan("plan-1", USER_ID, "Push A", TrainingPlanType.PLANNED_WORKOUT, LocalDate.parse("2026-04-12"), createdAt);
         UpdateTrainingPlanRequest request = updatePlannedWorkoutRequest(" Push B ", LocalDate.parse("2026-04-20"), false);
 
-        mockMvc.perform(put("/v1/training-plans/plan-1")
+        mockMvc.perform(put("/api/v1/training-plans/plan-1")
                         .header("Authorization", bearerToken(USER_EMAIL))
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -545,7 +545,7 @@ class TrainingPlanControllerIntegrationTest {
         insertTrainingPlan("plan-1", USER_ID, "Push A", Instant.parse("2026-04-07T12:00:00Z"));
         UpdateTrainingPlanRequest request = updatePlannedWorkoutRequest(" Push B ", LocalDate.parse("2026-04-21"), true);
 
-        mockMvc.perform(put("/v1/training-plans/plan-1")
+        mockMvc.perform(put("/api/v1/training-plans/plan-1")
                         .header("Authorization", bearerToken(USER_EMAIL))
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -567,7 +567,7 @@ class TrainingPlanControllerIntegrationTest {
                 Instant.parse("2026-04-07T12:00:00Z"));
         UpdateTrainingPlanRequest request = updateTemplateRequest(" Push B ", true);
 
-        mockMvc.perform(put("/v1/training-plans/plan-1")
+        mockMvc.perform(put("/api/v1/training-plans/plan-1")
                         .header("Authorization", bearerToken(USER_EMAIL))
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -589,7 +589,7 @@ class TrainingPlanControllerIntegrationTest {
                 TrainingPlanStatus.PLANNED, Instant.parse("2026-04-08T12:00:00Z"));
         UpdateTrainingPlanStatusRequest request = new UpdateTrainingPlanStatusRequest(TrainingPlanStatus.DONE);
 
-        mockMvc.perform(patch("/v1/training-plans/plan-1/status")
+        mockMvc.perform(patch("/api/v1/training-plans/plan-1/status")
                         .header("Authorization", bearerToken(USER_EMAIL))
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -607,7 +607,7 @@ class TrainingPlanControllerIntegrationTest {
                 TrainingPlanStatus.PLANNED, Instant.parse("2026-04-08T12:00:00Z"));
         UpdateTrainingPlanStatusRequest request = new UpdateTrainingPlanStatusRequest(TrainingPlanStatus.SKIPPED);
 
-        mockMvc.perform(patch("/v1/training-plans/plan-1/status")
+        mockMvc.perform(patch("/api/v1/training-plans/plan-1/status")
                         .header("Authorization", bearerToken(USER_EMAIL))
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -625,7 +625,7 @@ class TrainingPlanControllerIntegrationTest {
                 TrainingPlanStatus.DONE, Instant.parse("2026-04-08T12:00:00Z"));
         UpdateTrainingPlanStatusRequest request = new UpdateTrainingPlanStatusRequest(TrainingPlanStatus.SKIPPED);
 
-        mockMvc.perform(patch("/v1/training-plans/plan-1/status")
+        mockMvc.perform(patch("/api/v1/training-plans/plan-1/status")
                         .header("Authorization", bearerToken(USER_EMAIL))
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -641,7 +641,7 @@ class TrainingPlanControllerIntegrationTest {
         insertTrainingPlan("plan-1", USER_ID, "Push A", Instant.parse("2026-04-08T12:00:00Z"));
         UpdateTrainingPlanStatusRequest request = new UpdateTrainingPlanStatusRequest(TrainingPlanStatus.DONE);
 
-        mockMvc.perform(patch("/v1/training-plans/plan-1/status")
+        mockMvc.perform(patch("/api/v1/training-plans/plan-1/status")
                         .header("Authorization", bearerToken(USER_EMAIL))
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -658,7 +658,7 @@ class TrainingPlanControllerIntegrationTest {
                 TrainingPlanStatus.PLANNED, Instant.parse("2026-04-08T12:00:00Z"));
         UpdateTrainingPlanStatusRequest request = new UpdateTrainingPlanStatusRequest(TrainingPlanStatus.DONE);
 
-        mockMvc.perform(patch("/v1/training-plans/plan-1/status")
+        mockMvc.perform(patch("/api/v1/training-plans/plan-1/status")
                         .header("Authorization", bearerToken(USER_EMAIL))
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -674,7 +674,7 @@ class TrainingPlanControllerIntegrationTest {
         insertTrainingPlan("plan-1", USER_ID, "Push A", TrainingPlanType.PLANNED_WORKOUT, LocalDate.parse("2026-04-12"),
                 TrainingPlanStatus.PLANNED, Instant.parse("2026-04-08T12:00:00Z"));
 
-        mockMvc.perform(patch("/v1/training-plans/plan-1/status")
+        mockMvc.perform(patch("/api/v1/training-plans/plan-1/status")
                         .header("Authorization", bearerToken(USER_EMAIL))
                         .contentType(APPLICATION_JSON)
                         .content("""
@@ -692,7 +692,7 @@ class TrainingPlanControllerIntegrationTest {
         insertTrainingPlan("plan-1", USER_ID, "Push A", TrainingPlanType.PLANNED_WORKOUT, LocalDate.parse("2026-04-12"),
                 TrainingPlanStatus.PLANNED, Instant.parse("2026-04-08T12:00:00Z"));
 
-        mockMvc.perform(patch("/v1/training-plans/plan-1/status")
+        mockMvc.perform(patch("/api/v1/training-plans/plan-1/status")
                         .header("Authorization", bearerToken(USER_EMAIL))
                         .contentType(APPLICATION_JSON)
                         .content("""
@@ -710,7 +710,7 @@ class TrainingPlanControllerIntegrationTest {
         insertTrainingPlan("plan-1", OTHER_USER_ID, "Push A", Instant.parse("2026-04-08T12:00:00Z"));
         UpdateTrainingPlanRequest request = updateTemplateRequest("Push B", false);
 
-        mockMvc.perform(put("/v1/training-plans/plan-1")
+        mockMvc.perform(put("/api/v1/training-plans/plan-1")
                         .header("Authorization", bearerToken(USER_EMAIL))
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -748,7 +748,7 @@ class TrainingPlanControllerIntegrationTest {
                 }
                 """;
 
-        mockMvc.perform(post("/v1/training-plans")
+        mockMvc.perform(post("/api/v1/training-plans")
                         .header("Authorization", bearerToken(USER_EMAIL))
                         .contentType(APPLICATION_JSON)
                         .content(requestBody))
@@ -773,7 +773,7 @@ class TrainingPlanControllerIntegrationTest {
                 true
         );
 
-        mockMvc.perform(post("/v1/training-plans")
+        mockMvc.perform(post("/api/v1/training-plans")
                         .header("Authorization", bearerToken(USER_EMAIL))
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -798,7 +798,7 @@ class TrainingPlanControllerIntegrationTest {
                 true
         );
 
-        mockMvc.perform(post("/v1/training-plans")
+        mockMvc.perform(post("/api/v1/training-plans")
                         .header("Authorization", bearerToken(USER_EMAIL))
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -811,7 +811,7 @@ class TrainingPlanControllerIntegrationTest {
     void deleteTrainingPlanSuccess() throws Exception {
         insertTrainingPlan("plan-1", USER_ID, "Push A", Instant.parse("2026-04-08T12:00:00Z"));
 
-        mockMvc.perform(delete("/v1/training-plans/plan-1")
+        mockMvc.perform(delete("/api/v1/training-plans/plan-1")
                         .header("Authorization", bearerToken(USER_EMAIL)))
                 .andExpect(status().isNoContent());
 
@@ -823,7 +823,7 @@ class TrainingPlanControllerIntegrationTest {
     void deleteTrainingPlanForDifferentUser() throws Exception {
         insertTrainingPlan("plan-1", OTHER_USER_ID, "Push A", Instant.parse("2026-04-08T12:00:00Z"));
 
-        mockMvc.perform(delete("/v1/training-plans/plan-1")
+        mockMvc.perform(delete("/api/v1/training-plans/plan-1")
                         .header("Authorization", bearerToken(USER_EMAIL)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("Training plan not found."));

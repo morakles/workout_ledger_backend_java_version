@@ -110,7 +110,7 @@ class AuthControllerIntegrationTest {
         void registerLocalSuccess() throws Exception {
             RegisterLocalUserRequest req = new RegisterLocalUserRequest("User@Email.com", "password123");
 
-            mockMvc.perform(post("/api/auth/register")
+            mockMvc.perform(post("/api/v1/auth/register")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(req)))
                     .andExpect(status().isCreated())
@@ -128,7 +128,7 @@ class AuthControllerIntegrationTest {
         void registerBlankPassword() throws Exception {
             RegisterLocalUserRequest req = new RegisterLocalUserRequest("user@email.com", "");
 
-            mockMvc.perform(post("/api/auth/register")
+            mockMvc.perform(post("/api/v1/auth/register")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(req)))
                     .andExpect(status().isBadRequest());
@@ -139,7 +139,7 @@ class AuthControllerIntegrationTest {
         void registerBlankEmail() throws Exception {
             RegisterLocalUserRequest req = new RegisterLocalUserRequest("", "password123");
 
-            mockMvc.perform(post("/api/auth/register")
+            mockMvc.perform(post("/api/v1/auth/register")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(req)))
                     .andExpect(status().isBadRequest());
@@ -150,7 +150,7 @@ class AuthControllerIntegrationTest {
         void registerInvalidEmail() throws Exception {
             RegisterLocalUserRequest req = new RegisterLocalUserRequest("not-an-email", "password123");
 
-            mockMvc.perform(post("/api/auth/register")
+            mockMvc.perform(post("/api/v1/auth/register")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(req)))
                     .andExpect(status().isBadRequest());
@@ -168,7 +168,7 @@ class AuthControllerIntegrationTest {
 
             RegisterLocalUserRequest req = new RegisterLocalUserRequest("user@email.com", "password123");
 
-            mockMvc.perform(post("/api/auth/register")
+            mockMvc.perform(post("/api/v1/auth/register")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(req)))
                     .andExpect(status().isConflict())
@@ -183,7 +183,7 @@ class AuthControllerIntegrationTest {
 
             RegisterLocalUserRequest req = new RegisterLocalUserRequest("user@email.com", "password123");
 
-            mockMvc.perform(post("/api/auth/register")
+            mockMvc.perform(post("/api/v1/auth/register")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(req)))
                     .andExpect(status().isConflict())
@@ -201,7 +201,7 @@ class AuthControllerIntegrationTest {
 
             RegisterLocalUserRequest req = new RegisterLocalUserRequest("user@email.com", "password123");
 
-            mockMvc.perform(post("/api/auth/register")
+            mockMvc.perform(post("/api/v1/auth/register")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(req)))
                     .andExpect(status().isBadRequest());
@@ -222,7 +222,7 @@ class AuthControllerIntegrationTest {
 
             LoginRequest req = new LoginRequest("user@email.com", "password123");
 
-            mockMvc.perform(post("/api/auth/login")
+            mockMvc.perform(post("/api/v1/auth/login")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(req)))
                     .andExpect(status().isOk())
@@ -242,7 +242,7 @@ class AuthControllerIntegrationTest {
 
             LoginRequest req = new LoginRequest("user@email.com", "wrong");
 
-            mockMvc.perform(post("/api/auth/login")
+            mockMvc.perform(post("/api/v1/auth/login")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(req)))
                     .andExpect(status().isUnauthorized());
@@ -259,7 +259,7 @@ class AuthControllerIntegrationTest {
 
             LoginRequest req = new LoginRequest("user@email.com", "password123");
 
-            mockMvc.perform(post("/api/auth/login")
+            mockMvc.perform(post("/api/v1/auth/login")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(req)))
                     .andExpect(status().isUnauthorized());
@@ -270,7 +270,7 @@ class AuthControllerIntegrationTest {
         void loginUnknownEmail() throws Exception {
             LoginRequest req = new LoginRequest("missing@email.com", "password123");
 
-            mockMvc.perform(post("/api/auth/login")
+            mockMvc.perform(post("/api/v1/auth/login")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(req)))
                     .andExpect(status().isUnauthorized());
@@ -288,7 +288,7 @@ class AuthControllerIntegrationTest {
 
             LoginRequest req = new LoginRequest("User@Email.com", "password123");
 
-            mockMvc.perform(post("/api/auth/login")
+            mockMvc.perform(post("/api/v1/auth/login")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(req)))
                     .andExpect(status().isOk())
@@ -310,7 +310,7 @@ class AuthControllerIntegrationTest {
 
             GoogleLoginRequest req = new GoogleLoginRequest("id-token");
 
-            mockMvc.perform(post("/api/auth/google-login")
+            mockMvc.perform(post("/api/v1/auth/google-login")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(req)))
                     .andExpect(status().isOk())
@@ -325,7 +325,7 @@ class AuthControllerIntegrationTest {
 
             GoogleLoginRequest req = new GoogleLoginRequest("id-token");
 
-            mockMvc.perform(post("/api/auth/google-login")
+            mockMvc.perform(post("/api/v1/auth/google-login")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(req)))
                     .andExpect(status().isOk())
@@ -348,7 +348,7 @@ class AuthControllerIntegrationTest {
 
             GoogleLoginRequest req = new GoogleLoginRequest("id-token");
 
-            mockMvc.perform(post("/api/auth/google-login")
+            mockMvc.perform(post("/api/v1/auth/google-login")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(req)))
                     .andExpect(status().isUnauthorized());
@@ -362,7 +362,7 @@ class AuthControllerIntegrationTest {
 
             GoogleLoginRequest req = new GoogleLoginRequest("bad-token");
 
-            mockMvc.perform(post("/api/auth/google-login")
+            mockMvc.perform(post("/api/v1/auth/google-login")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(req)))
                     .andExpect(status().isUnauthorized());
