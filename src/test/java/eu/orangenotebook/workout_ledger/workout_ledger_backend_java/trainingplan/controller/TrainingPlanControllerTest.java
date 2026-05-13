@@ -238,6 +238,21 @@ class TrainingPlanControllerTest {
     }
 
     @Test
+    @DisplayName("start endpoint should return created workout identifiers")
+    void startTrainingPlanSuccess() throws Exception {
+        when(trainingPlanService.startTrainingPlan(USER_EMAIL, "plan-1"))
+                .thenReturn(new StartTrainingPlanResponse("workout-1", "plan-1"));
+
+        mockMvc.perform(post("/api/v1/training-plans/plan-1/start")
+                        .principal(authentication()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.workoutId").value("workout-1"))
+                .andExpect(jsonPath("$.trainingPlanId").value("plan-1"));
+
+        verify(trainingPlanService).startTrainingPlan(USER_EMAIL, "plan-1");
+    }
+
+    @Test
     @DisplayName("delete endpoint should return 204")
     void deleteTrainingPlanSuccess() throws Exception {
         mockMvc.perform(delete("/api/v1/training-plans/plan-1")

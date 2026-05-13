@@ -6,6 +6,7 @@ import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.service.TrainingPlanService;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanStatus;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.model.TrainingPlanType;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -99,6 +100,14 @@ public class TrainingPlanController {
                 request.status()
         );
         return ResponseEntity.ok(trainingPlanMapper.toResponse(updatedTrainingPlan));
+    }
+
+    @PostMapping("/{trainingPlanId}/start")
+    @Operation(summary = "Start a training plan as a workout")
+    public ResponseEntity<StartTrainingPlanResponse> startTrainingPlan(@PathVariable String trainingPlanId,
+                                                                       Authentication authentication) {
+        var response = trainingPlanService.startTrainingPlan(authentication.getName(), trainingPlanId);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @DeleteMapping("/{trainingPlanId}")

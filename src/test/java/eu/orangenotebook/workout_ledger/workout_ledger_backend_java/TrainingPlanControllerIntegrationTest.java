@@ -19,6 +19,7 @@ import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.model.UserDocument;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.model.UserProvider;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.repository.UserRepository;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.workout.model.WorkoutDocument;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.workout.repository.WorkoutRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -95,12 +96,14 @@ class TrainingPlanControllerIntegrationTest {
     Map<String, UserDocument> usersByEmail;
     Map<String, TrainingPlanDocument> trainingPlansById;
     Map<String, ExerciseDocument> exercisesByOwnerAndId;
+    Map<String, WorkoutDocument> workoutsById;
 
     @BeforeEach
     void setUp() {
         usersByEmail = new ConcurrentHashMap<>();
         trainingPlansById = new ConcurrentHashMap<>();
         exercisesByOwnerAndId = new ConcurrentHashMap<>();
+        workoutsById = new ConcurrentHashMap<>();
 
         usersByEmail.put(USER_EMAIL, createUser(USER_ID, USER_EMAIL));
         usersByEmail.put(OTHER_USER_EMAIL, createUser(OTHER_USER_ID, OTHER_USER_EMAIL));
@@ -142,6 +145,15 @@ class TrainingPlanControllerIntegrationTest {
                     );
                     trainingPlansById.put(saved.getId(), saved);
                     return saved;
+                });
+
+        Mockito.lenient().when(workoutRepository.save(any(WorkoutDocument.class)))
+                .thenAnswer(invocation -> {
+                    WorkoutDocument workout = invocation.getArgument(0);
+                    String id = workout.getId() != null ? workout.getId() : UUID.randomUUID().toString();
+                    workout.setId(id);
+                    workoutsById.put(id, workout);
+                    return workout;
                 });
 
         Mockito.lenient().when(trainingPlanRepository.findAllByUserIdAndFilters(
@@ -702,6 +714,86 @@ class TrainingPlanControllerIntegrationTest {
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Malformed request body."));
+    }
+
+    @Test
+    @DisplayName("should start planned workout as workout for authenticated user")
+    void startTrainingPlanCreatesWorkoutAndMarksPlanDone() throws Exception {
+        insertTrainingPlan("plan-1", USER_ID, "Push A", TrainingPlanType.PLANNED_WORKOUT, LocalDate.parse("2026-04-12"),
+                TrainingPlanStatus.PLANNED, Instant.parse("2026-04-08T12:00:00Z"));
+
+        mockMvc.perform(post("/api/v1/training-plans/plan-1/start")
+                        .header("Authorization", bearerToken(USER_EMAIL)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.workoutId").exists())
+                .andExpect(jsonPath("$.trainingPlanId").value("plan-1"));
+
+        assertThat(workoutsById).hasSize(1);
+        WorkoutDocument savedWorkout = workoutsById.values().iterator().next();
+        assertThat(savedWorkout.getUserId()).isEqualTo(USER_ID);
+        assertThat(savedWorkout.getName()).isEqualTo("Push A");
+        assertThat(savedWorkout.getWorkoutDate()).isNotNull();
+        assertThat(savedWorkout.getEntries()).hasSize(1);
+        assertThat(savedWorkout.getEntries().getFirst().getExerciseId()).isEqualTo("exercise-1");
+        assertThat(savedWorkout.getEntries().getFirst().getSets()).hasSize(1);
+        assertThat(savedWorkout.getEntries().getFirst().getSets().getFirst().getReps()).isEqualTo(10);
+        assertThat(trainingPlansById.get("plan-1").getStatus()).isEqualTo(TrainingPlanStatus.DONE);
+    }
+
+    @Test
+    @DisplayName("should return 404 when starting another users training plan")
+    void startTrainingPlanForDifferentUser() throws Exception {
+        insertTrainingPlan("plan-1", OTHER_USER_ID, "Push A", TrainingPlanType.PLANNED_WORKOUT, LocalDate.parse("2026-04-12"),
+                TrainingPlanStatus.PLANNED, Instant.parse("2026-04-08T12:00:00Z"));
+
+        mockMvc.perform(post("/api/v1/training-plans/plan-1/start")
+                        .header("Authorization", bearerToken(USER_EMAIL)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("Training plan not found."));
+
+        assertThat(workoutsById).isEmpty();
+        assertThat(trainingPlansById.get("plan-1").getStatus()).isEqualTo(TrainingPlanStatus.PLANNED);
+    }
+
+    @Test
+    @DisplayName("should return 400 when starting training plan without exercises")
+    void startTrainingPlanWithoutExercisesFails() throws Exception {
+        trainingPlansById.put("plan-1", copyTrainingPlan(
+                "plan-1",
+                USER_ID,
+                "Push A",
+                "Upper body",
+                TrainingPlanType.PLANNED_WORKOUT,
+                TrainingPlanStatus.PLANNED,
+                LocalDate.parse("2026-04-12"),
+                List.of(),
+                true,
+                Instant.parse("2026-04-08T12:00:00Z"),
+                Instant.parse("2026-04-08T12:00:00Z")
+        ));
+
+        mockMvc.perform(post("/api/v1/training-plans/plan-1/start")
+                        .header("Authorization", bearerToken(USER_EMAIL)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Training plan has no exercises."));
+
+        assertThat(workoutsById).isEmpty();
+        assertThat(trainingPlansById.get("plan-1").getStatus()).isEqualTo(TrainingPlanStatus.PLANNED);
+    }
+
+    @Test
+    @DisplayName("should return 409 when starting already done planned workout")
+    void startTrainingPlanAlreadyDoneFails() throws Exception {
+        insertTrainingPlan("plan-1", USER_ID, "Push A", TrainingPlanType.PLANNED_WORKOUT, LocalDate.parse("2026-04-12"),
+                TrainingPlanStatus.DONE, Instant.parse("2026-04-08T12:00:00Z"));
+
+        mockMvc.perform(post("/api/v1/training-plans/plan-1/start")
+                        .header("Authorization", bearerToken(USER_EMAIL)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("Training plan cannot be started from status DONE."));
+
+        assertThat(workoutsById).isEmpty();
+        assertThat(trainingPlansById.get("plan-1").getStatus()).isEqualTo(TrainingPlanStatus.DONE);
     }
 
     @Test

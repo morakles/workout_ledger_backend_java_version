@@ -23,6 +23,9 @@ import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.model.UserDocument;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.model.UserProvider;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.repository.UserRepository;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.workout.model.SetType;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.workout.model.WorkoutDocument;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.workout.repository.WorkoutRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -62,6 +65,9 @@ class TrainingPlanServiceTest {
     @Mock
     private ExerciseRepository exerciseRepository;
 
+    @Mock
+    private WorkoutRepository workoutRepository;
+
     private TrainingPlanService trainingPlanService;
 
     @BeforeEach
@@ -70,7 +76,8 @@ class TrainingPlanServiceTest {
                 trainingPlanRepository,
                 userRepository,
                 new TrainingPlanMapper(),
-                exerciseRepository
+                exerciseRepository,
+                workoutRepository
         );
         lenient().when(userRepository.findByEmail(USER_EMAIL)).thenReturn(Optional.of(user()));
     }
@@ -477,6 +484,95 @@ class TrainingPlanServiceTest {
 
         assertThat(updatedTrainingPlan.getStatus()).isEqualTo(TrainingPlanStatus.SKIPPED);
         verify(trainingPlanRepository).save(trainingPlan);
+    }
+
+    @Test
+    @DisplayName("should start planned workout as workout and mark plan done")
+    void startTrainingPlanCreatesWorkoutAndMarksPlannedWorkoutDone() {
+        TrainingPlanDocument trainingPlan = trainingPlan(
+                "plan-1",
+                "Push A",
+                Instant.parse("2026-04-07T12:00:00Z"),
+                entry("exercise-1", 1, plannedSet(1), plannedSet(2))
+        );
+        trainingPlan.setType(TrainingPlanType.PLANNED_WORKOUT);
+        trainingPlan.setStatus(TrainingPlanStatus.PLANNED);
+        trainingPlan.setPlannedDate(LocalDate.parse("2026-04-12"));
+        when(trainingPlanRepository.findByIdAndUserId("plan-1", USER_ID)).thenReturn(Optional.of(trainingPlan));
+        when(workoutRepository.save(any(WorkoutDocument.class))).thenAnswer(invocation -> {
+            WorkoutDocument workout = invocation.getArgument(0);
+            workout.setId("workout-1");
+            return workout;
+        });
+        when(trainingPlanRepository.save(any(TrainingPlanDocument.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Instant before = Instant.now();
+        var response = trainingPlanService.startTrainingPlan(USER_EMAIL, "plan-1");
+        Instant after = Instant.now();
+
+        ArgumentCaptor<WorkoutDocument> workoutCaptor = ArgumentCaptor.forClass(WorkoutDocument.class);
+        verify(workoutRepository).save(workoutCaptor.capture());
+        WorkoutDocument savedWorkout = workoutCaptor.getValue();
+        assertThat(response.workoutId()).isEqualTo("workout-1");
+        assertThat(response.trainingPlanId()).isEqualTo("plan-1");
+        assertThat(savedWorkout.getUserId()).isEqualTo(USER_ID);
+        assertThat(savedWorkout.getName()).isEqualTo("Push A");
+        assertThat(savedWorkout.getWorkoutDate()).isBetween(before, after);
+        assertThat(savedWorkout.getEntries()).hasSize(1);
+        assertThat(savedWorkout.getEntries().getFirst().getExerciseId()).isEqualTo("exercise-1");
+        assertThat(savedWorkout.getEntries().getFirst().getSets()).hasSize(2);
+        assertThat(savedWorkout.getEntries().getFirst().getSets().getFirst().getType()).isEqualTo(SetType.NORMAL);
+        assertThat(trainingPlan.getStatus()).isEqualTo(TrainingPlanStatus.DONE);
+        verify(trainingPlanRepository).save(trainingPlan);
+    }
+
+    @Test
+    @DisplayName("should reject start when plan belongs to another user")
+    void startTrainingPlanRejectsForeignPlan() {
+        when(trainingPlanRepository.findByIdAndUserId("foreign-plan", USER_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> trainingPlanService.startTrainingPlan(USER_EMAIL, "foreign-plan"))
+                .isInstanceOf(TrainingPlanNotFoundException.class)
+                .hasMessage("Training plan not found.");
+
+        verify(workoutRepository, never()).save(any());
+        verify(trainingPlanRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("should reject start when plan has no exercises")
+    void startTrainingPlanRejectsEmptyEntries() {
+        TrainingPlanDocument trainingPlan = trainingPlan("plan-1", "Push A", Instant.parse("2026-04-07T12:00:00Z"));
+        when(trainingPlanRepository.findByIdAndUserId("plan-1", USER_ID)).thenReturn(Optional.of(trainingPlan));
+
+        assertThatThrownBy(() -> trainingPlanService.startTrainingPlan(USER_EMAIL, "plan-1"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Training plan has no exercises.");
+
+        verify(workoutRepository, never()).save(any());
+        verify(trainingPlanRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("should reject start when planned workout is already done")
+    void startTrainingPlanRejectsDoneStatus() {
+        TrainingPlanDocument trainingPlan = trainingPlan(
+                "plan-1",
+                "Push A",
+                Instant.parse("2026-04-07T12:00:00Z"),
+                entry("exercise-1", 1, plannedSet(1))
+        );
+        trainingPlan.setType(TrainingPlanType.PLANNED_WORKOUT);
+        trainingPlan.setStatus(TrainingPlanStatus.DONE);
+        trainingPlan.setPlannedDate(LocalDate.parse("2026-04-12"));
+        when(trainingPlanRepository.findByIdAndUserId("plan-1", USER_ID)).thenReturn(Optional.of(trainingPlan));
+
+        assertThatThrownBy(() -> trainingPlanService.startTrainingPlan(USER_EMAIL, "plan-1"))
+                .isInstanceOf(InvalidTrainingPlanStatusTransitionException.class)
+                .hasMessage("Training plan cannot be started from status DONE.");
+
+        verify(workoutRepository, never()).save(any());
+        verify(trainingPlanRepository, never()).save(any());
     }
 
     @Test

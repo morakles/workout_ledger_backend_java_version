@@ -8,6 +8,7 @@ import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exception.Tr
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exercise.model.ExerciseDocument;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.exercise.repository.ExerciseRepository;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.controller.CreateTrainingPlanRequest;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.controller.StartTrainingPlanResponse;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.controller.TrainingPlanEntryRequest;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.controller.TrainingPlanListItemResponse;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.controller.TrainingPlanResponse;
@@ -20,9 +21,15 @@ import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.trainingplan.repository.TrainingPlanRepository;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.model.UserDocument;
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.user.repository.UserRepository;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.workout.model.SetEntry;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.workout.model.SetType;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.workout.model.WorkoutDocument;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.workout.model.WorkoutEntry;
+import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.workout.repository.WorkoutRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.LinkedHashSet;
 import java.util.HashSet;
@@ -43,6 +50,7 @@ public class TrainingPlanService {
     private final UserRepository userRepository;
     private final TrainingPlanMapper trainingPlanMapper;
     private final ExerciseRepository exerciseRepository;
+    private final WorkoutRepository workoutRepository;
 
     public TrainingPlanDocument createTrainingPlan(String authenticatedEmail, CreateTrainingPlanRequest request) {
         UserDocument user = getAuthenticatedUser(authenticatedEmail);
@@ -127,6 +135,27 @@ public class TrainingPlanService {
 
     public TrainingPlanDocument markTrainingPlanAsDone(String authenticatedEmail, String trainingPlanId) {
         return updateTrainingPlanStatus(authenticatedEmail, trainingPlanId, TrainingPlanStatus.DONE);
+    }
+
+    public StartTrainingPlanResponse startTrainingPlan(String authenticatedEmail, String trainingPlanId) {
+        UserDocument user = getAuthenticatedUser(authenticatedEmail);
+        TrainingPlanDocument trainingPlanDocument = getUserTrainingPlan(trainingPlanId, user.getId());
+        validateTrainingPlanCanStart(trainingPlanDocument);
+
+        WorkoutDocument workoutDocument = WorkoutDocument.builder()
+                .userId(user.getId())
+                .name(trimToNull(trainingPlanDocument.getName()))
+                .workoutDate(Instant.now())
+                .entries(toWorkoutEntries(trainingPlanDocument))
+                .build();
+        WorkoutDocument savedWorkout = workoutRepository.save(workoutDocument);
+
+        if (resolveType(trainingPlanDocument) == TrainingPlanType.PLANNED_WORKOUT) {
+            trainingPlanDocument.setStatus(TrainingPlanStatus.DONE);
+            trainingPlanRepository.save(trainingPlanDocument);
+        }
+
+        return new StartTrainingPlanResponse(savedWorkout.getId(), trainingPlanDocument.getId());
     }
 
     private List<TrainingPlanEntry> resolveEntries(String userId, List<TrainingPlanEntryRequest> requests) {
@@ -240,6 +269,60 @@ public class TrainingPlanService {
                     "Training plan status can be updated only for PLANNED_WORKOUT."
             );
         }
+    }
+
+    private void validateTrainingPlanCanStart(TrainingPlanDocument trainingPlanDocument) {
+        List<TrainingPlanEntry> entries = Optional.ofNullable(trainingPlanDocument.getEntries())
+                .orElseGet(List::of);
+        if (entries.isEmpty()) {
+            throw new IllegalArgumentException("Training plan has no exercises.");
+        }
+
+        for (TrainingPlanEntry entry : entries) {
+            if (Optional.ofNullable(entry.getPlannedSets()).orElseGet(List::of).isEmpty()) {
+                throw new IllegalArgumentException("Training plan entry has no planned sets.");
+            }
+        }
+
+        if (resolveType(trainingPlanDocument) == TrainingPlanType.PLANNED_WORKOUT
+                && trainingPlanDocument.getStatus() != TrainingPlanStatus.PLANNED) {
+            throw new InvalidTrainingPlanStatusTransitionException(
+                    "Training plan cannot be started from status " + trainingPlanDocument.getStatus() + "."
+            );
+        }
+    }
+
+    private List<WorkoutEntry> toWorkoutEntries(TrainingPlanDocument trainingPlanDocument) {
+        return trainingPlanDocument.getEntries().stream()
+                .map(this::toWorkoutEntry)
+                .toList();
+    }
+
+    private WorkoutEntry toWorkoutEntry(TrainingPlanEntry trainingPlanEntry) {
+        return WorkoutEntry.builder()
+                .exerciseId(trimToNull(trainingPlanEntry.getExerciseId()))
+                .notes(trimToNull(trainingPlanEntry.getNotes()))
+                .sets(trainingPlanEntry.getPlannedSets().stream()
+                        .map(this::toSetEntry)
+                        .toList())
+                .build();
+    }
+
+    private SetEntry toSetEntry(PlannedSet plannedSet) {
+        return SetEntry.builder()
+                .setNumber(plannedSet.getSetNumber())
+                .weight(plannedSet.getWeight())
+                .reps(plannedSet.getReps())
+                .restSeconds(plannedSet.getRestSeconds())
+                .durationSeconds(plannedSet.getDurationSeconds())
+                .distanceMeters(plannedSet.getDistanceMeters())
+                .type(plannedSet.getType() != null ? SetType.valueOf(plannedSet.getType().name()) : SetType.NORMAL)
+                .build();
+    }
+
+    private TrainingPlanType resolveType(TrainingPlanDocument trainingPlanDocument) {
+        return Optional.ofNullable(trainingPlanDocument.getType())
+                .orElse(TrainingPlanType.TEMPLATE);
     }
 
     private void normalizeStatusAfterTypeChange(TrainingPlanDocument trainingPlanDocument, TrainingPlanType originalType) {
