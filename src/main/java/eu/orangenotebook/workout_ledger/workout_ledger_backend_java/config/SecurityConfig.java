@@ -34,7 +34,15 @@ public class SecurityConfig {
             "/swagger-ui/**",
             "/v3/api-docs/**",
             ApiPaths.API_V1 + "/status",
-            "/favicon.ico"
+            "/",
+            "/index.html",
+            "/*.css",
+            "/*.js",
+            "/*.ico",
+            "/*.png",
+            "/*.svg",
+            "/*.webmanifest",
+            "/assets/**"
     };
 
     @Bean
