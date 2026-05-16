@@ -16,6 +16,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
@@ -275,6 +277,35 @@ class TrainingPlanControllerTest {
                 .andExpect(jsonPath("$.message").exists());
 
         verifyNoInteractions(trainingPlanService);
+    }
+
+    @ParameterizedTest
+    @EnumSource(PlannedSetType.class)
+    @DisplayName("create endpoint should allow zero weight for every planned set type")
+    void createTrainingPlanAllowsZeroWeightForEveryPlannedSetType(PlannedSetType setType) throws Exception {
+        CreateTrainingPlanRequest request = new CreateTrainingPlanRequest(
+                "Push A",
+                "Upper body",
+                TrainingPlanType.TEMPLATE,
+                null,
+                List.of(new TrainingPlanEntryRequest(
+                        "exercise-1",
+                        1,
+                        null,
+                        List.of(new PlannedSetRequest(1, 10, 0.0, null, null, 90, setType))
+                )),
+                true
+        );
+        TrainingPlanDocument trainingPlan = trainingPlan("plan-1", "Push A", true);
+        when(trainingPlanService.createTrainingPlan(USER_EMAIL, request)).thenReturn(trainingPlan);
+
+        mockMvc.perform(post("/api/v1/training-plans")
+                        .principal(authentication())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated());
+
+        verify(trainingPlanService).createTrainingPlan(USER_EMAIL, request);
     }
 
     private Authentication authentication() {

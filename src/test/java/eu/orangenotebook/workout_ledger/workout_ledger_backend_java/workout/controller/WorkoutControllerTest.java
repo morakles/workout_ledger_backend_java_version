@@ -10,6 +10,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.aop.framework.ProxyFactory;
@@ -103,6 +105,30 @@ class WorkoutControllerTest {
                 .andExpect(jsonPath("$.message").value("must not be empty"));
 
         verifyNoInteractions(workoutService);
+    }
+
+    @ParameterizedTest
+    @EnumSource(SetType.class)
+    @DisplayName("create endpoint should allow zero weight for every performed set type")
+    void createWorkoutAllowsZeroWeightForEverySetType(SetType setType) throws Exception {
+        CreateWorkoutRequest request = new CreateWorkoutRequest(
+                "Push day",
+                Instant.parse("2026-04-10T06:00:00Z"),
+                List.of(new CreateWorkoutEntryRequest(
+                        "exercise-123",
+                        null,
+                        List.of(setWithZeroWeight(setType))
+                ))
+        );
+        when(workoutService.createWorkout(USER_EMAIL, request)).thenReturn(workoutResponse());
+
+        mockMvc.perform(post("/api/v1/workouts")
+                        .principal(authentication())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated());
+
+        verify(workoutService).createWorkout(USER_EMAIL, request);
     }
 
     @Test
@@ -421,5 +447,14 @@ class WorkoutControllerTest {
                 true,
                 true
         );
+    }
+
+    private CreateSetEntryRequest setWithZeroWeight(SetType setType) {
+        return switch (setType) {
+            case TIME -> new CreateSetEntryRequest(1, 0.0, null, null, 30.0, null, setType);
+            case DISTANCE -> new CreateSetEntryRequest(1, 0.0, null, null, null, 400.0, setType);
+            case NORMAL, WARMUP, DROP, FAILURE ->
+                    new CreateSetEntryRequest(1, 0.0, 10, null, null, null, setType);
+        };
     }
 }
