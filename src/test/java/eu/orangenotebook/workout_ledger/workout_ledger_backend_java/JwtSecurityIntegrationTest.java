@@ -18,6 +18,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -44,6 +45,15 @@ class JwtSecurityIntegrationTest {
     void publicEndpointNoToken() throws Exception {
         mockMvc.perform(get("/api/v1/status"))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("frontend index page without token returns HTML")
+    void frontendIndexNoToken() throws Exception {
+        mockMvc.perform(get("/index.html"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_HTML))
+                .andExpect(content().string(containsString("<app-root>")));
     }
 
     @Test
