@@ -2,7 +2,6 @@ package eu.orangenotebook.workout_ledger.workout_ledger_backend_java.workout.mod
 
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -19,7 +18,7 @@ public class SetEntry {
     @Min(1)
     private Integer setNumber;
 
-    @Positive
+    @PositiveOrZero
     private Double weight;
 
     @Min(1)

@@ -3,12 +3,11 @@ package eu.orangenotebook.workout_ledger.workout_ledger_backend_java.workout.con
 import eu.orangenotebook.workout_ledger.workout_ledger_backend_java.workout.model.SetType;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
 
 public record CreateSetEntryRequest(
         @NotNull @Min(1) Integer setNumber,
-        @Positive Double weight,
+        @PositiveOrZero Double weight,
         @Min(1) Integer reps,
         @PositiveOrZero Integer restSeconds,
         @PositiveOrZero Double durationSeconds,
