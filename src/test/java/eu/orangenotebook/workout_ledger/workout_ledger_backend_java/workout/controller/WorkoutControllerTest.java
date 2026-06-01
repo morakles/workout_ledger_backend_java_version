@@ -79,6 +79,7 @@ class WorkoutControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value("workout-123"))
                 .andExpect(jsonPath("$.name").value("Push day"))
+                .andExpect(jsonPath("$.notes").value("Dobry trening"))
                 .andExpect(jsonPath("$.workoutDate").value("2026-04-10T06:00:00Z"))
                 .andExpect(jsonPath("$.entries[0]").exists())
                 .andExpect(jsonPath("$.entries[0].sets[0]").exists())
@@ -142,6 +143,7 @@ class WorkoutControllerTest {
                         .queryParam("size", "10"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0].id").value("workout-123"))
+                .andExpect(jsonPath("$.items[0].notes").value("Dobry trening"))
                 .andExpect(jsonPath("$.page").value(1))
                 .andExpect(jsonPath("$.size").value(10))
                 .andExpect(jsonPath("$.totalElements").value(21))
@@ -196,7 +198,8 @@ class WorkoutControllerTest {
         mockMvc.perform(get("/api/v1/workouts/workout-123")
                         .principal(authentication()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value("workout-123"));
+                .andExpect(jsonPath("$.id").value("workout-123"))
+                .andExpect(jsonPath("$.notes").value("Dobry trening"));
 
         verify(workoutService).getById("workout-123", USER_EMAIL);
     }
@@ -320,6 +323,42 @@ class WorkoutControllerTest {
     }
 
     @Test
+    @DisplayName("patch endpoint should update notes")
+    void patchWorkoutNotes() throws Exception {
+        PatchWorkoutRequest request = PatchWorkoutRequest.withNotes("Updated notes", null, null);
+        when(workoutService.partialUpdate("workout-123", request, USER_EMAIL)).thenReturn(workoutResponse());
+
+        mockMvc.perform(patch("/api/v1/workouts/workout-123")
+                        .principal(authentication())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"notes":"Updated notes"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value("workout-123"));
+
+        verify(workoutService).partialUpdate("workout-123", request, USER_EMAIL);
+    }
+
+    @Test
+    @DisplayName("patch endpoint should pass explicit null notes to service")
+    void patchWorkoutWithNullNotes() throws Exception {
+        PatchWorkoutRequest request = PatchWorkoutRequest.withNotes(null, null, null);
+        when(workoutService.partialUpdate("workout-123", request, USER_EMAIL)).thenReturn(workoutResponse());
+
+        mockMvc.perform(patch("/api/v1/workouts/workout-123")
+                        .principal(authentication())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"notes":null}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value("workout-123"));
+
+        verify(workoutService).partialUpdate("workout-123", request, USER_EMAIL);
+    }
+
+    @Test
     @DisplayName("patch endpoint should return 404 when workout is missing")
     void patchWorkoutNotFound() throws Exception {
         PatchWorkoutRequest request = PatchWorkoutRequest.withName("Updated push day", null, null);
@@ -407,6 +446,7 @@ class WorkoutControllerTest {
     private CreateWorkoutRequest createWorkoutRequest() {
         return new CreateWorkoutRequest(
                 "Push day",
+                "Dobry trening",
                 Instant.parse("2026-04-10T06:00:00Z"),
                 List.of(new CreateWorkoutEntryRequest(
                         "exercise-123",
@@ -423,6 +463,7 @@ class WorkoutControllerTest {
         return new WorkoutResponse(
                 "workout-123",
                 "Push day",
+                "Dobry trening",
                 Instant.parse("2026-04-10T06:00:00Z"),
                 List.of(new WorkoutEntryResponse(
                         "exercise-123",

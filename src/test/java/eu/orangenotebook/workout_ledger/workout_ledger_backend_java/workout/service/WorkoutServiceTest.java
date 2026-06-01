@@ -77,6 +77,7 @@ class WorkoutServiceTest {
     void createWorkoutSuccess() {
         CreateWorkoutRequest request = new CreateWorkoutRequest(
                 " Push day ",
+                " Dobry trening ",
                 Instant.parse("2026-04-10T06:00:00Z"),
                 List.of(new CreateWorkoutEntryRequest(
                         " exercise-123 ",
@@ -105,6 +106,7 @@ class WorkoutServiceTest {
         WorkoutDocument savedWorkout = workoutCaptor.getValue();
         assertThat(savedWorkout.getUserId()).isEqualTo(USER_ID);
         assertThat(savedWorkout.getName()).isEqualTo("Push day");
+        assertThat(savedWorkout.getNotes()).isEqualTo("Dobry trening");
         assertThat(savedWorkout.getWorkoutDate()).isEqualTo(Instant.parse("2026-04-10T06:00:00Z"));
         assertThat(savedWorkout.getEntries()).hasSize(1);
         assertThat(savedWorkout.getEntries().getFirst().getExerciseId()).isEqualTo("exercise-123");
@@ -114,12 +116,31 @@ class WorkoutServiceTest {
 
         assertThat(createdWorkout.id()).isEqualTo("workout-123");
         assertThat(createdWorkout.name()).isEqualTo("Push day");
+        assertThat(createdWorkout.notes()).isEqualTo("Dobry trening");
         assertThat(createdWorkout.workoutDate()).isEqualTo(Instant.parse("2026-04-10T06:00:00Z"));
         assertThat(createdWorkout.entries()).hasSize(1);
         assertThat(createdWorkout.entries().getFirst().exerciseId()).isEqualTo("exercise-123");
         assertThat(createdWorkout.entries().getFirst().notes()).isEqualTo("Dobre czucie");
         assertThat(createdWorkout.createdAt()).isEqualTo(Instant.parse("2026-04-10T07:00:00Z"));
         assertThat(createdWorkout.updatedAt()).isEqualTo(Instant.parse("2026-04-10T07:05:00Z"));
+    }
+
+    @Test
+    @DisplayName("should create workout without notes")
+    void createWorkoutWithoutNotes() {
+        CreateWorkoutRequest request = createWorkoutRequest(List.of(
+                new CreateSetEntryRequest(1, 60.0, 10, 90, null, null, SetType.NORMAL)
+        ));
+        when(exerciseRepository.findAllByIdInAndUserId(Set.of("exercise-123"), USER_ID))
+                .thenReturn(List.of(exercise("exercise-123")));
+        when(workoutRepository.save(any(WorkoutDocument.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        WorkoutResponse createdWorkout = workoutService.createWorkout(USER_EMAIL, request);
+
+        ArgumentCaptor<WorkoutDocument> workoutCaptor = ArgumentCaptor.forClass(WorkoutDocument.class);
+        verify(workoutRepository).save(workoutCaptor.capture());
+        assertThat(workoutCaptor.getValue().getNotes()).isNull();
+        assertThat(createdWorkout.notes()).isNull();
     }
 
     @Test
@@ -181,6 +202,7 @@ class WorkoutServiceTest {
         WorkoutResponse workout = workoutService.getById("workout-123", USER_EMAIL);
 
         assertThat(workout.id()).isEqualTo("workout-123");
+        assertThat(workout.notes()).isEqualTo("Dobry trening");
         verify(workoutRepository).findByIdAndUserId("workout-123", USER_ID);
     }
 
@@ -200,6 +222,7 @@ class WorkoutServiceTest {
     void updateWorkoutSuccess() {
         CreateWorkoutRequest request = new CreateWorkoutRequest(
                 " Leg day ",
+                " Notatki po edycji ",
                 Instant.parse("2026-04-11T06:00:00Z"),
                 List.of(new CreateWorkoutEntryRequest(
                 " exercise-456 ",
@@ -216,11 +239,13 @@ class WorkoutServiceTest {
         WorkoutResponse updatedWorkout = workoutService.update("workout-123", request, USER_EMAIL);
 
         assertThat(existingWorkout.getName()).isEqualTo("Leg day");
+        assertThat(existingWorkout.getNotes()).isEqualTo("Notatki po edycji");
         assertThat(existingWorkout.getWorkoutDate()).isEqualTo(Instant.parse("2026-04-11T06:00:00Z"));
         assertThat(existingWorkout.getEntries()).hasSize(1);
         assertThat(existingWorkout.getEntries().getFirst().getExerciseId()).isEqualTo("exercise-456");
         assertThat(existingWorkout.getEntries().getFirst().getNotes()).isEqualTo("Heavy squats");
         assertThat(updatedWorkout.id()).isEqualTo("workout-123");
+        assertThat(updatedWorkout.notes()).isEqualTo("Notatki po edycji");
     }
 
     @Test
@@ -295,6 +320,34 @@ class WorkoutServiceTest {
 
         assertThat(existingWorkout.getName()).isNull();
         assertThat(updatedWorkout.name()).isNull();
+    }
+
+    @Test
+    @DisplayName("should partially update notes")
+    void partialUpdateNotes() {
+        WorkoutDocument existingWorkout = workoutDocument();
+        PatchWorkoutRequest request = PatchWorkoutRequest.withNotes(" Nowe notatki ", null, null);
+        when(workoutRepository.findByIdAndUserId("workout-123", USER_ID)).thenReturn(Optional.of(existingWorkout));
+        when(workoutRepository.save(existingWorkout)).thenReturn(existingWorkout);
+
+        WorkoutResponse updatedWorkout = workoutService.partialUpdate("workout-123", request, USER_EMAIL);
+
+        assertThat(existingWorkout.getNotes()).isEqualTo("Nowe notatki");
+        assertThat(updatedWorkout.notes()).isEqualTo("Nowe notatki");
+    }
+
+    @Test
+    @DisplayName("should clear notes when patch provides explicit null notes")
+    void partialUpdateWithNullNotesClearsNotes() {
+        WorkoutDocument existingWorkout = workoutDocument();
+        PatchWorkoutRequest request = PatchWorkoutRequest.withNotes(null, null, null);
+        when(workoutRepository.findByIdAndUserId("workout-123", USER_ID)).thenReturn(Optional.of(existingWorkout));
+        when(workoutRepository.save(existingWorkout)).thenReturn(existingWorkout);
+
+        WorkoutResponse updatedWorkout = workoutService.partialUpdate("workout-123", request, USER_EMAIL);
+
+        assertThat(existingWorkout.getNotes()).isNull();
+        assertThat(updatedWorkout.notes()).isNull();
     }
 
     @Test
@@ -525,6 +578,7 @@ class WorkoutServiceTest {
                 .id("workout-123")
                 .userId(USER_ID)
                 .name("Push day")
+                .notes("Dobry trening")
                 .workoutDate(Instant.parse("2026-04-10T06:00:00Z"))
                 .entries(List.of(new WorkoutEntry(
                         "exercise-123",

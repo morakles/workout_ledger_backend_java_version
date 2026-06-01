@@ -44,6 +44,9 @@ public class WorkoutDocument {
     @Size(max = 120)
     private String name;
 
+    @Size(max = 1000)
+    private String notes;
+
     @NotNull
     private Instant workoutDate;
 

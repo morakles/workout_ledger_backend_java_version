@@ -21,6 +21,16 @@ public class PatchWorkoutRequest {
     @Schema(hidden = true)
     private boolean nameProvided;
 
+    @Schema(
+            description = "Omit to keep the existing notes, send null to clear them, or send a string to update them.",
+            nullable = true
+    )
+    @Size(max = 1000)
+    private String notes;
+
+    @Schema(hidden = true)
+    private boolean notesProvided;
+
     private Instant workoutDate;
 
     @Size(min = 1)
@@ -32,11 +42,15 @@ public class PatchWorkoutRequest {
     private PatchWorkoutRequest(
             boolean nameProvided,
             String name,
+            boolean notesProvided,
+            String notes,
             Instant workoutDate,
             List<CreateWorkoutEntryRequest> entries
     ) {
         this.nameProvided = nameProvided;
         this.name = name;
+        this.notesProvided = notesProvided;
+        this.notes = notes;
         this.workoutDate = workoutDate;
         this.entries = entries;
     }
@@ -46,14 +60,31 @@ public class PatchWorkoutRequest {
             Instant workoutDate,
             List<CreateWorkoutEntryRequest> entries
     ) {
-        return new PatchWorkoutRequest(true, name, workoutDate, entries);
+        return new PatchWorkoutRequest(true, name, false, null, workoutDate, entries);
     }
 
     public static PatchWorkoutRequest withoutName(
             Instant workoutDate,
             List<CreateWorkoutEntryRequest> entries
     ) {
-        return new PatchWorkoutRequest(false, null, workoutDate, entries);
+        return new PatchWorkoutRequest(false, null, false, null, workoutDate, entries);
+    }
+
+    public static PatchWorkoutRequest withNotes(
+            String notes,
+            Instant workoutDate,
+            List<CreateWorkoutEntryRequest> entries
+    ) {
+        return new PatchWorkoutRequest(false, null, true, notes, workoutDate, entries);
+    }
+
+    public static PatchWorkoutRequest withNameAndNotes(
+            String name,
+            String notes,
+            Instant workoutDate,
+            List<CreateWorkoutEntryRequest> entries
+    ) {
+        return new PatchWorkoutRequest(true, name, true, notes, workoutDate, entries);
     }
 
     public String name() {
@@ -68,6 +99,20 @@ public class PatchWorkoutRequest {
     @Schema(hidden = true)
     public boolean hasName() {
         return nameProvided;
+    }
+
+    public String notes() {
+        return notes;
+    }
+
+    public void setNotes(String notes) {
+        this.notesProvided = true;
+        this.notes = notes;
+    }
+
+    @Schema(hidden = true)
+    public boolean hasNotes() {
+        return notesProvided;
     }
 
     public Instant workoutDate() {
@@ -88,7 +133,7 @@ public class PatchWorkoutRequest {
 
     @Schema(hidden = true)
     public boolean isEmpty() {
-        return !nameProvided && workoutDate == null && entries == null;
+        return !nameProvided && !notesProvided && workoutDate == null && entries == null;
     }
 
     @Override
@@ -100,13 +145,15 @@ public class PatchWorkoutRequest {
             return false;
         }
         return nameProvided == that.nameProvided
+                && notesProvided == that.notesProvided
                 && Objects.equals(name, that.name)
+                && Objects.equals(notes, that.notes)
                 && Objects.equals(workoutDate, that.workoutDate)
                 && Objects.equals(entries, that.entries);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(nameProvided, name, workoutDate, entries);
+        return Objects.hash(nameProvided, name, notesProvided, notes, workoutDate, entries);
     }
 }

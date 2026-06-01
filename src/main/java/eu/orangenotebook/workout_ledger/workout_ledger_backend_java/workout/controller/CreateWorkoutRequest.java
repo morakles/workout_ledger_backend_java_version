@@ -10,7 +10,15 @@ import java.util.List;
 
 public record CreateWorkoutRequest(
         @Size(max = 120) String name,
+        @Size(max = 1000) String notes,
         @NotNull Instant workoutDate,
         @NotEmpty List<@NotNull @Valid CreateWorkoutEntryRequest> entries
 ) {
+    public CreateWorkoutRequest(
+            String name,
+            Instant workoutDate,
+            List<CreateWorkoutEntryRequest> entries
+    ) {
+        this(name, null, workoutDate, entries);
+    }
 }

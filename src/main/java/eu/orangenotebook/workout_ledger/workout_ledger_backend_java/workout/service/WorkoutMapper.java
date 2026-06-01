@@ -24,6 +24,7 @@ public class WorkoutMapper {
         return WorkoutDocument.builder()
                 .userId(trimToNull(userId))
                 .name(trimToNull(request.name()))
+                .notes(trimToNull(request.notes()))
                 .workoutDate(request.workoutDate())
                 .entries(toWorkoutEntries(request.entries()))
                 .build();
@@ -31,6 +32,7 @@ public class WorkoutMapper {
 
     public void updateDocument(WorkoutDocument workoutDocument, CreateWorkoutRequest request) {
         workoutDocument.setName(trimToNull(request.name()));
+        workoutDocument.setNotes(trimToNull(request.notes()));
         workoutDocument.setWorkoutDate(request.workoutDate());
         workoutDocument.setEntries(toWorkoutEntries(request.entries()));
     }
@@ -38,6 +40,9 @@ public class WorkoutMapper {
     public void partialUpdateDocument(WorkoutDocument workoutDocument, PatchWorkoutRequest request) {
         if (request.hasName()) {
             workoutDocument.setName(trimToNull(request.name()));
+        }
+        if (request.hasNotes()) {
+            workoutDocument.setNotes(trimToNull(request.notes()));
         }
         if (request.workoutDate() != null) {
             workoutDocument.setWorkoutDate(request.workoutDate());
@@ -51,6 +56,7 @@ public class WorkoutMapper {
         return new WorkoutResponse(
                 workoutDocument.getId(),
                 workoutDocument.getName(),
+                workoutDocument.getNotes(),
                 workoutDocument.getWorkoutDate(),
                 workoutDocument.getEntries().stream()
                         .map(this::toWorkoutEntryResponse)
